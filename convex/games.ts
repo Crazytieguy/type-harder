@@ -153,6 +153,7 @@ export const getRoom = query({
         return {
           ...player,
           name: user?.name || "Unknown",
+          avatarUrl: user?.avatarUrl,
         };
       })
     );

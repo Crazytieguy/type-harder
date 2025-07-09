@@ -66,6 +66,13 @@ function ResultsPage() {
                 {/* 2nd Place */}
                 {results[1] && (
                   <div className="bg-base-300 rounded-lg px-6 py-4 text-center">
+                    {results[1].avatarUrl && (
+                      <div className="avatar mb-2">
+                        <div className="w-16 rounded-full">
+                          <img src={results[1].avatarUrl} alt={results[1].name} />
+                        </div>
+                      </div>
+                    )}
                     <div className="text-3xl mb-2">🥈</div>
                     <div className="font-medium">{results[1].name}</div>
                     <div className="text-sm opacity-70 mt-1">{results[1].wpm} WPM</div>
@@ -75,6 +82,13 @@ function ResultsPage() {
                 {/* 1st Place */}
                 {results[0] && (
                   <div className="bg-warning/20 rounded-lg px-6 py-4 text-center border-2 border-warning">
+                    {results[0].avatarUrl && (
+                      <div className="avatar mb-2">
+                        <div className="w-20 rounded-full ring ring-warning">
+                          <img src={results[0].avatarUrl} alt={results[0].name} />
+                        </div>
+                      </div>
+                    )}
                     <div className="text-4xl mb-2">🥇</div>
                     <div className="font-bold text-lg">{results[0].name}</div>
                     <div className="text-sm opacity-70 mt-1">{results[0].wpm} WPM</div>
@@ -84,6 +98,13 @@ function ResultsPage() {
                 {/* 3rd Place */}
                 {results[2] && (
                   <div className="bg-base-300 rounded-lg px-6 py-4 text-center">
+                    {results[2].avatarUrl && (
+                      <div className="avatar mb-2">
+                        <div className="w-14 rounded-full">
+                          <img src={results[2].avatarUrl} alt={results[2].name} />
+                        </div>
+                      </div>
+                    )}
                     <div className="text-2xl mb-2">🥉</div>
                     <div className="font-medium text-sm">{results[2].name}</div>
                     <div className="text-xs opacity-70 mt-1">{results[2].wpm} WPM</div>
