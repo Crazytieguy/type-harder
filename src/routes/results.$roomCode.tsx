@@ -1,7 +1,7 @@
 import { convexQuery } from "@convex-dev/react-query";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Trophy, Clock, Zap } from "lucide-react";
+import { Clock, Trophy, Zap } from "lucide-react";
 import { api } from "../../convex/_generated/api";
 
 export const Route = createFileRoute("/results/$roomCode")({
@@ -65,34 +65,28 @@ function ResultsPage() {
               <div className="flex justify-center items-end gap-4 mb-6">
                 {/* 2nd Place */}
                 {results[1] && (
-                  <div className="text-center">
-                    <div className="bg-base-300 rounded-t-lg px-6 py-4 h-24 flex flex-col justify-end">
-                      <div className="text-3xl mb-1">🥈</div>
-                      <div className="font-medium">{results[1].name}</div>
-                      <div className="text-sm opacity-70">{results[1].wpm} WPM</div>
-                    </div>
+                  <div className="bg-base-300 rounded-lg px-6 py-4 text-center">
+                    <div className="text-3xl mb-2">🥈</div>
+                    <div className="font-medium">{results[1].name}</div>
+                    <div className="text-sm opacity-70 mt-1">{results[1].wpm} WPM</div>
                   </div>
                 )}
                 
                 {/* 1st Place */}
                 {results[0] && (
-                  <div className="text-center">
-                    <div className="bg-warning/20 rounded-t-lg px-6 py-4 h-32 flex flex-col justify-end border-2 border-warning">
-                      <div className="text-4xl mb-1">🥇</div>
-                      <div className="font-bold text-lg">{results[0].name}</div>
-                      <div className="text-sm opacity-70">{results[0].wpm} WPM</div>
-                    </div>
+                  <div className="bg-warning/20 rounded-lg px-6 py-4 text-center border-2 border-warning">
+                    <div className="text-4xl mb-2">🥇</div>
+                    <div className="font-bold text-lg">{results[0].name}</div>
+                    <div className="text-sm opacity-70 mt-1">{results[0].wpm} WPM</div>
                   </div>
                 )}
                 
                 {/* 3rd Place */}
                 {results[2] && (
-                  <div className="text-center">
-                    <div className="bg-base-300 rounded-t-lg px-6 py-4 h-20 flex flex-col justify-end">
-                      <div className="text-2xl mb-1">🥉</div>
-                      <div className="font-medium text-sm">{results[2].name}</div>
-                      <div className="text-xs opacity-70">{results[2].wpm} WPM</div>
-                    </div>
+                  <div className="bg-base-300 rounded-lg px-6 py-4 text-center">
+                    <div className="text-2xl mb-2">🥉</div>
+                    <div className="font-medium text-sm">{results[2].name}</div>
+                    <div className="text-xs opacity-70 mt-1">{results[2].wpm} WPM</div>
                   </div>
                 )}
               </div>
