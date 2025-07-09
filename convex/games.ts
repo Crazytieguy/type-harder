@@ -140,6 +140,19 @@ export const getRoom = query({
       return null;
     }
 
+    // Get current user's ID if authenticated
+    let currentUserId = null;
+    const identity = await ctx.auth.getUserIdentity();
+    if (identity) {
+      const currentUser = await ctx.db
+        .query("users")
+        .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
+        .unique();
+      if (currentUser) {
+        currentUserId = currentUser._id;
+      }
+    }
+
     // Get all players
     const players = await ctx.db
       .query("players")
@@ -168,6 +181,7 @@ export const getRoom = query({
       ...room,
       players: playersWithDetails,
       paragraph,
+      currentUserId, // Include the current user's ID
     };
   },
 });

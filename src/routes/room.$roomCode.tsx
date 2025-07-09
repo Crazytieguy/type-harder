@@ -1,4 +1,3 @@
-import { useUser } from "@clerk/clerk-react";
 import { convexQuery } from "@convex-dev/react-query";
 import { useForm } from "@tanstack/react-form";
 import { useSuspenseQuery } from "@tanstack/react-query";
@@ -35,9 +34,7 @@ const wordCountSchema = z.object({
 function RoomPage() {
   const { roomCode } = Route.useParams();
   const navigate = useNavigate();
-  const { user } = useUser();
   const [copied, setCopied] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
   
   const roomQueryOptions = convexQuery(api.games.getRoom, { roomCode });
   const { data: room } = useSuspenseQuery(roomQueryOptions);
@@ -88,12 +85,8 @@ function RoomPage() {
     return null;
   }
 
-  const currentUserId = room.players.find(p => 
-    room._id === p.gameRoomId && user?.id
-  )?.userId;
-
-  const isHost = currentUserId === room.hostId;
-  const currentPlayer = room.players.find(p => p.userId === currentUserId);
+  const isHost = room.currentUserId === room.hostId;
+  const currentPlayer = room.players.find(p => p.userId === room.currentUserId);
   const allReady = room.players.every(p => p.isReady);
 
   const handleCopyCode = () => {
@@ -108,10 +101,6 @@ function RoomPage() {
     } catch (err) {
       console.error("Failed to toggle ready:", err);
     }
-  };
-
-  const handleStartGame = () => {
-    void wordCountForm.handleSubmit();
   };
 
   return (
@@ -177,85 +166,86 @@ function RoomPage() {
             <div className="divider"></div>
 
             {isHost && (
-              <div className="mb-4">
-                <button
-                  className="btn btn-sm btn-ghost"
-                  onClick={() => setShowSettings(!showSettings)}
-                >
-                  <Settings className="w-4 h-4 mr-1" />
-                  Game Settings
-                </button>
-                
-                {showSettings && (
-                  <div className="mt-4 p-4 bg-base-100 rounded-lg">
-                    <div className="space-y-4">
+              <form 
+                id="game-settings-form"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  void wordCountForm.handleSubmit();
+                }}
+                className="mb-4"
+              >
+                <div className="p-4 bg-base-100 rounded-lg">
+                  <h3 className="flex items-center gap-2 font-medium mb-3">
+                    <Settings className="w-4 h-4" />
+                    Game Settings
+                  </h3>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="label">
+                        <span className="label-text">Word Count Range</span>
+                      </label>
                       <div>
-                        <label className="label">
-                          <span className="label-text">Word Count Range</span>
-                        </label>
-                        <div>
-                          <div className="flex gap-2 items-center">
-                            <wordCountForm.Field name="minWordCount">
-                              {(field) => (
-                                <input
-                                  type="number"
-                                  value={field.state.value}
-                                  onChange={(e) => field.handleChange(e.target.valueAsNumber)}
-                                  className={`input input-bordered w-20 text-center ${
-                                    !field.state.meta.isValid ? "input-error" : ""
-                                  }`}
-                                  min="10"
-                                  max="500"
-                                />
-                              )}
-                            </wordCountForm.Field>
-                            <span>to</span>
-                            <wordCountForm.Field name="maxWordCount">
-                              {(field) => (
-                                <input
-                                  type="number"
-                                  value={field.state.value}
-                                  onChange={(e) => field.handleChange(e.target.valueAsNumber)}
-                                  className={`input input-bordered w-20 text-center ${
-                                    !field.state.meta.isValid ? "input-error" : ""
-                                  }`}
-                                  min="10"
-                                  max="500"
-                                />
-                              )}
-                            </wordCountForm.Field>
-                            <span className="text-sm opacity-70">words</span>
-                          </div>
-                          <div className="h-5 mt-1">
-                            <wordCountForm.Field name="minWordCount">
-                              {(field) => (
-                                <>
-                                  {!field.state.meta.isValid && field.state.meta.errors.length > 0 && (
-                                    <em className="text-error text-xs">
-                                      {field.state.meta.errors[0]?.message}
-                                    </em>
-                                  )}
-                                </>
-                              )}
-                            </wordCountForm.Field>
-                            <wordCountForm.Field name="maxWordCount">
-                              {(field) => (
-                                <>
-                                  {!field.state.meta.isValid && field.state.meta.errors.length > 0 && (
-                                    <em className="text-error text-xs">
-                                      {field.state.meta.errors[0]?.message}
-                                    </em>
-                                  )}
-                                </>
-                              )}
-                            </wordCountForm.Field>
-                          </div>
+                        <div className="flex gap-2 items-center">
+                          <wordCountForm.Field name="minWordCount">
+                            {(field) => (
+                              <input
+                                type="number"
+                                value={field.state.value}
+                                onChange={(e) => field.handleChange(e.target.valueAsNumber)}
+                                className={`input input-bordered w-20 text-center ${
+                                  !field.state.meta.isValid ? "input-error" : ""
+                                }`}
+                                min="10"
+                                max="500"
+                              />
+                            )}
+                          </wordCountForm.Field>
+                          <span>to</span>
+                          <wordCountForm.Field name="maxWordCount">
+                            {(field) => (
+                              <input
+                                type="number"
+                                value={field.state.value}
+                                onChange={(e) => field.handleChange(e.target.valueAsNumber)}
+                                className={`input input-bordered w-20 text-center ${
+                                  !field.state.meta.isValid ? "input-error" : ""
+                                }`}
+                                min="10"
+                                max="500"
+                              />
+                            )}
+                          </wordCountForm.Field>
+                          <span className="text-sm opacity-70">words</span>
+                        </div>
+                        <div className="h-5 mt-1">
+                          <wordCountForm.Field name="minWordCount">
+                            {(field) => (
+                              <>
+                                {!field.state.meta.isValid && field.state.meta.errors.length > 0 && (
+                                  <em className="text-error text-xs">
+                                    {field.state.meta.errors[0]?.message}
+                                  </em>
+                                )}
+                              </>
+                            )}
+                          </wordCountForm.Field>
+                          <wordCountForm.Field name="maxWordCount">
+                            {(field) => (
+                              <>
+                                {!field.state.meta.isValid && field.state.meta.errors.length > 0 && (
+                                  <em className="text-error text-xs">
+                                    {field.state.meta.errors[0]?.message}
+                                  </em>
+                                )}
+                              </>
+                            )}
+                          </wordCountForm.Field>
                         </div>
                       </div>
                     </div>
                   </div>
-                )}
-              </div>
+                </div>
+              </form>
             )}
 
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
@@ -270,9 +260,10 @@ function RoomPage() {
               
               {isHost && (
                 <button 
+                  type="submit"
+                  form="game-settings-form"
                   className="btn btn-success"
-                  onClick={() => void handleStartGame()}
-                  disabled={!allReady || room.players.length < 2}
+                  disabled={!allReady || room.players.length < 2 || !wordCountForm.state.canSubmit || wordCountForm.state.isSubmitting}
                 >
                   Start Game
                 </button>
