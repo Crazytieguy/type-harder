@@ -13,6 +13,10 @@ import type {
   FilterApi,
   FunctionReference,
 } from "convex/server";
+import type * as games from "../games.js";
+import type * as scraping from "../scraping.js";
+import type * as scrapingMutations from "../scrapingMutations.js";
+import type * as scrapingQueries from "../scrapingQueries.js";
 import type * as users from "../users.js";
 
 /**
@@ -24,6 +28,10 @@ import type * as users from "../users.js";
  * ```
  */
 declare const fullApi: ApiFromModules<{
+  games: typeof games;
+  scraping: typeof scraping;
+  scrapingMutations: typeof scrapingMutations;
+  scrapingQueries: typeof scrapingQueries;
   users: typeof users;
 }>;
 export declare const api: FilterApi<

@@ -12,12 +12,33 @@
 
 import { Route as rootRoute } from './routes/__root'
 import { Route as IndexImport } from './routes/index'
+import { Route as RoomRoomCodeImport } from './routes/room.$roomCode'
+import { Route as ResultsRoomCodeImport } from './routes/results.$roomCode'
+import { Route as RaceRoomCodeImport } from './routes/race.$roomCode'
 
 // Create/Update Routes
 
 const IndexRoute = IndexImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRoute,
+} as any)
+
+const RoomRoomCodeRoute = RoomRoomCodeImport.update({
+  id: '/room/$roomCode',
+  path: '/room/$roomCode',
+  getParentRoute: () => rootRoute,
+} as any)
+
+const ResultsRoomCodeRoute = ResultsRoomCodeImport.update({
+  id: '/results/$roomCode',
+  path: '/results/$roomCode',
+  getParentRoute: () => rootRoute,
+} as any)
+
+const RaceRoomCodeRoute = RaceRoomCodeImport.update({
+  id: '/race/$roomCode',
+  path: '/race/$roomCode',
   getParentRoute: () => rootRoute,
 } as any)
 
@@ -32,6 +53,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexImport
       parentRoute: typeof rootRoute
     }
+    '/race/$roomCode': {
+      id: '/race/$roomCode'
+      path: '/race/$roomCode'
+      fullPath: '/race/$roomCode'
+      preLoaderRoute: typeof RaceRoomCodeImport
+      parentRoute: typeof rootRoute
+    }
+    '/results/$roomCode': {
+      id: '/results/$roomCode'
+      path: '/results/$roomCode'
+      fullPath: '/results/$roomCode'
+      preLoaderRoute: typeof ResultsRoomCodeImport
+      parentRoute: typeof rootRoute
+    }
+    '/room/$roomCode': {
+      id: '/room/$roomCode'
+      path: '/room/$roomCode'
+      fullPath: '/room/$roomCode'
+      preLoaderRoute: typeof RoomRoomCodeImport
+      parentRoute: typeof rootRoute
+    }
   }
 }
 
@@ -39,32 +81,52 @@ declare module '@tanstack/react-router' {
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/race/$roomCode': typeof RaceRoomCodeRoute
+  '/results/$roomCode': typeof ResultsRoomCodeRoute
+  '/room/$roomCode': typeof RoomRoomCodeRoute
 }
 
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/race/$roomCode': typeof RaceRoomCodeRoute
+  '/results/$roomCode': typeof ResultsRoomCodeRoute
+  '/room/$roomCode': typeof RoomRoomCodeRoute
 }
 
 export interface FileRoutesById {
   __root__: typeof rootRoute
   '/': typeof IndexRoute
+  '/race/$roomCode': typeof RaceRoomCodeRoute
+  '/results/$roomCode': typeof ResultsRoomCodeRoute
+  '/room/$roomCode': typeof RoomRoomCodeRoute
 }
 
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths: '/' | '/race/$roomCode' | '/results/$roomCode' | '/room/$roomCode'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to: '/' | '/race/$roomCode' | '/results/$roomCode' | '/room/$roomCode'
+  id:
+    | '__root__'
+    | '/'
+    | '/race/$roomCode'
+    | '/results/$roomCode'
+    | '/room/$roomCode'
   fileRoutesById: FileRoutesById
 }
 
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  RaceRoomCodeRoute: typeof RaceRoomCodeRoute
+  ResultsRoomCodeRoute: typeof ResultsRoomCodeRoute
+  RoomRoomCodeRoute: typeof RoomRoomCodeRoute
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  RaceRoomCodeRoute: RaceRoomCodeRoute,
+  ResultsRoomCodeRoute: ResultsRoomCodeRoute,
+  RoomRoomCodeRoute: RoomRoomCodeRoute,
 }
 
 export const routeTree = rootRoute
@@ -77,11 +139,23 @@ export const routeTree = rootRoute
     "__root__": {
       "filePath": "__root.tsx",
       "children": [
-        "/"
+        "/",
+        "/race/$roomCode",
+        "/results/$roomCode",
+        "/room/$roomCode"
       ]
     },
     "/": {
       "filePath": "index.tsx"
+    },
+    "/race/$roomCode": {
+      "filePath": "race.$roomCode.tsx"
+    },
+    "/results/$roomCode": {
+      "filePath": "results.$roomCode.tsx"
+    },
+    "/room/$roomCode": {
+      "filePath": "room.$roomCode.tsx"
     }
   }
 }
