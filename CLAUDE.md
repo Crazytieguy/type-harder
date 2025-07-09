@@ -1,4 +1,5 @@
 - Always follow the guidelines in this file, unless explicitly told otherwise by the user or overided in the CLAUDE.local.md file.
+- See @README.md for project-specific information about Type Harder
 
 ## Project Overview
 
