@@ -65,18 +65,16 @@ export const scrapeSequences = internalAction({
           const paragraph = paragraphs[i];
           const wordCount = countWords(paragraph);
           
-          // Only save paragraphs with meaningful content (at least 10 words)
-          if (wordCount >= 10) {
-            await ctx.runMutation(internal.scrapingMutations.saveParagraph, {
-              content: paragraph,
-              bookTitle,
-              sequenceTitle,
-              articleTitle: title,
-              articleUrl: url,
-              paragraphIndex: i,
-              wordCount,
-            });
-          }
+          // Save all paragraphs (filtering can be done later when selecting)
+          await ctx.runMutation(internal.scrapingMutations.saveParagraph, {
+            content: paragraph,
+            bookTitle,
+            sequenceTitle,
+            articleTitle: title,
+            articleUrl: url,
+            paragraphIndex: i,
+            wordCount,
+          });
         }
         
         // Mark as completed
@@ -89,7 +87,7 @@ export const scrapeSequences = internalAction({
         console.log(`Processed ${successCount}/${urlsToProcess.length}: ${title}`);
         
         // Add a small delay to avoid rate limiting
-        await new Promise(resolve => setTimeout(resolve, 500));
+        await new Promise(resolve => setTimeout(resolve, 100));
         
       } catch (error) {
         errorCount++;

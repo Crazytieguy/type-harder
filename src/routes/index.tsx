@@ -1,8 +1,10 @@
 import { SignInButton } from "@clerk/clerk-react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useForm } from "@tanstack/react-form";
 import { Authenticated, Unauthenticated, useMutation } from "convex/react";
 import { Keyboard } from "lucide-react";
 import { useState } from "react";
+import { z } from "zod";
 import { api } from "../../convex/_generated/api";
 
 export const Route = createFileRoute("/")({
@@ -33,14 +35,37 @@ function HomePage() {
   );
 }
 
+const joinRoomSchema = z.object({
+  roomCode: z.string()
+    .min(1, "Room code is required")
+    .length(6, "Room code must be 6 characters")
+    .transform(v => v.toUpperCase()),
+});
+
 function GameOptions() {
   const navigate = useNavigate();
   const createRoom = useMutation(api.games.createRoom);
-  const joinRoom = useMutation(api.games.joinRoom);
-  const [joinCode, setJoinCode] = useState("");
+  const joinRoomMutation = useMutation(api.games.joinRoom);
   const [isCreating, setIsCreating] = useState(false);
-  const [isJoining, setIsJoining] = useState(false);
   const [error, setError] = useState("");
+
+  const joinForm = useForm({
+    defaultValues: {
+      roomCode: "",
+    },
+    validators: {
+      onChange: joinRoomSchema,
+    },
+    onSubmit: async ({ value }) => {
+      setError("");
+      try {
+        await joinRoomMutation({ roomCode: value.roomCode });
+        void navigate({ to: "/room/$roomCode", params: { roomCode: value.roomCode } });
+      } catch {
+        setError("Room not found or game already started");
+      }
+    },
+  });
 
   const handleCreateRoom = async () => {
     setIsCreating(true);
@@ -51,21 +76,6 @@ function GameOptions() {
     } catch {
       setError("Failed to create room");
       setIsCreating(false);
-    }
-  };
-
-  const handleJoinRoom = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!joinCode.trim()) return;
-
-    setIsJoining(true);
-    setError("");
-    try {
-      await joinRoom({ roomCode: joinCode.toUpperCase() });
-      void navigate({ to: "/room/$roomCode", params: { roomCode: joinCode.toUpperCase() } });
-    } catch {
-      setError("Room not found or game already started");
-      setIsJoining(false);
     }
   };
 
@@ -94,25 +104,45 @@ function GameOptions() {
           <h2 className="card-title justify-center">Join a Race</h2>
           <p className="text-center opacity-70">Enter a room code to join an existing race</p>
           
-          <form onSubmit={(e) => void handleJoinRoom(e)} className="mt-4">
-            <div className="join w-full">
-              <input
-                type="text"
-                placeholder="Enter room code"
-                className="input input-bordered join-item flex-1 text-center uppercase"
-                value={joinCode}
-                onChange={(e) => setJoinCode(e.target.value.toUpperCase().slice(0, 6))}
-                maxLength={6}
-                disabled={isJoining}
-              />
-              <button 
-                className="btn btn-primary join-item"
-                type="submit"
-                disabled={isJoining || !joinCode.trim()}
-              >
-                {isJoining ? "Joining..." : "Join"}
-              </button>
-            </div>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              void joinForm.handleSubmit();
+            }}
+            className="mt-4"
+          >
+            <joinForm.Field name="roomCode">
+              {(field) => (
+                <div>
+                  <div className="join w-full">
+                    <input
+                      type="text"
+                      placeholder="Enter room code"
+                      className={`input input-bordered join-item flex-1 text-center uppercase ${
+                        !field.state.meta.isValid ? "input-error" : ""
+                      }`}
+                      value={field.state.value}
+                      onChange={(e) => field.handleChange(e.target.value.toUpperCase().slice(0, 6))}
+                      onBlur={field.handleBlur}
+                      maxLength={6}
+                      disabled={joinForm.state.isSubmitting}
+                    />
+                    <button 
+                      className="btn btn-primary join-item"
+                      type="submit"
+                      disabled={!joinForm.state.canSubmit || joinForm.state.isSubmitting}
+                    >
+                      {joinForm.state.isSubmitting ? "Joining..." : "Join"}
+                    </button>
+                  </div>
+                  {!field.state.meta.isValid && field.state.meta.errors.length > 0 && (
+                    <em className="text-error text-sm mt-1 block">
+                      {field.state.meta.errors[0]?.message}
+                    </em>
+                  )}
+                </div>
+              )}
+            </joinForm.Field>
           </form>
         </div>
       </div>

@@ -227,8 +227,10 @@ export const toggleReady = mutation({
 export const startGame = mutation({
   args: {
     roomCode: v.string(),
+    minWordCount: v.optional(v.number()),
+    maxWordCount: v.optional(v.number()),
   },
-  handler: async (ctx, { roomCode }) => {
+  handler: async (ctx, { roomCode, minWordCount = 50, maxWordCount = 150 }) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
       throw new ConvexError("Not authenticated");
@@ -274,10 +276,10 @@ export const startGame = mutation({
       throw new ConvexError("Not all players are ready");
     }
 
-    // Select a random paragraph (50-150 words for good gameplay)
+    // Select a random paragraph using the provided word count settings
     const paragraphs = await ctx.db
       .query("sequences")
-      .withIndex("by_random", (q) => q.gte("wordCount", 50).lte("wordCount", 150))
+      .withIndex("by_random", (q) => q.gte("wordCount", minWordCount).lte("wordCount", maxWordCount))
       .collect();
 
     if (paragraphs.length === 0) {
@@ -294,6 +296,7 @@ export const startGame = mutation({
     });
   },
 });
+
 
 export const updateProgress = mutation({
   args: {

@@ -1,11 +1,13 @@
+import { useUser } from "@clerk/clerk-react";
 import { convexQuery } from "@convex-dev/react-query";
+import { useForm } from "@tanstack/react-form";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMutation } from "convex/react";
-import { Copy, Crown, Users, CheckCircle, Circle } from "lucide-react";
+import { CheckCircle, Circle, Copy, Crown, Settings, Users } from "lucide-react";
 import { useState } from "react";
+import { z } from "zod";
 import { api } from "../../convex/_generated/api";
-import { useUser } from "@clerk/clerk-react";
 
 export const Route = createFileRoute("/room/$roomCode")({
   loader: async ({ context: { queryClient }, params: { roomCode } }) => {
@@ -15,17 +17,54 @@ export const Route = createFileRoute("/room/$roomCode")({
   component: RoomPage,
 });
 
+const wordCountSchema = z.object({
+  minWordCount: z.number()
+    .min(10, "Minimum must be at least 10")
+    .max(500, "Minimum cannot exceed 500"),
+  maxWordCount: z.number()
+    .min(10, "Maximum must be at least 10")
+    .max(500, "Maximum cannot exceed 500"),
+}).refine(
+  (data) => data.maxWordCount >= data.minWordCount,
+  {
+    message: "Maximum must be greater than minimum",
+    path: ["maxWordCount"],
+  }
+);
+
 function RoomPage() {
   const { roomCode } = Route.useParams();
   const navigate = useNavigate();
   const { user } = useUser();
   const [copied, setCopied] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   
   const roomQueryOptions = convexQuery(api.games.getRoom, { roomCode });
   const { data: room } = useSuspenseQuery(roomQueryOptions);
   
   const toggleReady = useMutation(api.games.toggleReady);
   const startGame = useMutation(api.games.startGame);
+  
+  const wordCountForm = useForm({
+    defaultValues: {
+      minWordCount: 50,
+      maxWordCount: 150,
+    },
+    validators: {
+      onChange: wordCountSchema,
+    },
+    onSubmit: async ({ value }) => {
+      try {
+        await startGame({ 
+          roomCode, 
+          minWordCount: value.minWordCount, 
+          maxWordCount: value.maxWordCount
+        });
+      } catch (err) {
+        console.error("Failed to start game:", err);
+      }
+    },
+  });
 
   if (!room) {
     return (
@@ -57,9 +96,8 @@ function RoomPage() {
   const currentPlayer = room.players.find(p => p.userId === currentUserId);
   const allReady = room.players.every(p => p.isReady);
 
-  const handleCopyLink = () => {
-    const url = `${window.location.origin}/room/${roomCode}`;
-    void navigator.clipboard.writeText(url);
+  const handleCopyCode = () => {
+    void navigator.clipboard.writeText(roomCode);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -72,12 +110,8 @@ function RoomPage() {
     }
   };
 
-  const handleStartGame = async () => {
-    try {
-      await startGame({ roomCode });
-    } catch (err) {
-      console.error("Failed to start game:", err);
-    }
+  const handleStartGame = () => {
+    void wordCountForm.handleSubmit();
   };
 
   return (
@@ -93,10 +127,10 @@ function RoomPage() {
               <div className="text-3xl font-mono font-bold tracking-wider">{roomCode}</div>
               <button 
                 className="btn btn-sm btn-ghost mt-2"
-                onClick={handleCopyLink}
+                onClick={handleCopyCode}
               >
                 <Copy className="w-4 h-4 mr-1" />
-                {copied ? "Copied!" : "Copy Link"}
+                {copied ? "Copied!" : "Copy Code"}
               </button>
             </div>
           </div>
@@ -141,6 +175,88 @@ function RoomPage() {
             </div>
 
             <div className="divider"></div>
+
+            {isHost && (
+              <div className="mb-4">
+                <button
+                  className="btn btn-sm btn-ghost"
+                  onClick={() => setShowSettings(!showSettings)}
+                >
+                  <Settings className="w-4 h-4 mr-1" />
+                  Game Settings
+                </button>
+                
+                {showSettings && (
+                  <div className="mt-4 p-4 bg-base-100 rounded-lg">
+                    <div className="space-y-4">
+                      <div>
+                        <label className="label">
+                          <span className="label-text">Word Count Range</span>
+                        </label>
+                        <div>
+                          <div className="flex gap-2 items-center">
+                            <wordCountForm.Field name="minWordCount">
+                              {(field) => (
+                                <input
+                                  type="number"
+                                  value={field.state.value}
+                                  onChange={(e) => field.handleChange(e.target.valueAsNumber)}
+                                  className={`input input-bordered w-20 text-center ${
+                                    !field.state.meta.isValid ? "input-error" : ""
+                                  }`}
+                                  min="10"
+                                  max="500"
+                                />
+                              )}
+                            </wordCountForm.Field>
+                            <span>to</span>
+                            <wordCountForm.Field name="maxWordCount">
+                              {(field) => (
+                                <input
+                                  type="number"
+                                  value={field.state.value}
+                                  onChange={(e) => field.handleChange(e.target.valueAsNumber)}
+                                  className={`input input-bordered w-20 text-center ${
+                                    !field.state.meta.isValid ? "input-error" : ""
+                                  }`}
+                                  min="10"
+                                  max="500"
+                                />
+                              )}
+                            </wordCountForm.Field>
+                            <span className="text-sm opacity-70">words</span>
+                          </div>
+                          <div className="h-5 mt-1">
+                            <wordCountForm.Field name="minWordCount">
+                              {(field) => (
+                                <>
+                                  {!field.state.meta.isValid && field.state.meta.errors.length > 0 && (
+                                    <em className="text-error text-xs">
+                                      {field.state.meta.errors[0]?.message}
+                                    </em>
+                                  )}
+                                </>
+                              )}
+                            </wordCountForm.Field>
+                            <wordCountForm.Field name="maxWordCount">
+                              {(field) => (
+                                <>
+                                  {!field.state.meta.isValid && field.state.meta.errors.length > 0 && (
+                                    <em className="text-error text-xs">
+                                      {field.state.meta.errors[0]?.message}
+                                    </em>
+                                  )}
+                                </>
+                              )}
+                            </wordCountForm.Field>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
               {currentPlayer && (

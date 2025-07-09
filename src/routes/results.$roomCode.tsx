@@ -167,7 +167,12 @@ function ResultsPage() {
             </p>
             <p className="text-sm font-mono leading-relaxed">{room.paragraph.content}</p>
             <div className="text-sm opacity-70 mt-3">
-              Word count: {room.paragraph.wordCount}
+              <div>Word count: {room.paragraph.wordCount}</div>
+              <div className="mt-1">
+                <a href={room.paragraph.articleUrl} target="_blank" rel="noopener noreferrer" className="link link-primary">
+                  View original article
+                </a>
+              </div>
             </div>
           </div>
         </div>

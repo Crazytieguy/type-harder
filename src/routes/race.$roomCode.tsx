@@ -65,6 +65,13 @@ function RacePage() {
     ? Math.round((wordsCompleted / elapsedSeconds) * 60) 
     : 0;
 
+  const normalizeQuotes = (text: string) => {
+    // Replace curly/smart quotes with regular quotes
+    return text
+      .replace(/[""]/g, '"')  // Replace smart double quotes
+      .replace(/['']/g, "'"); // Replace smart single quotes
+  };
+
   const handleInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     
@@ -75,8 +82,11 @@ function RacePage() {
     
     setCurrentInput(value);
     
-    // Check if the current word is typed correctly
-    if (value === currentWord) {
+    // Check if the current word (with space for non-last words) is typed correctly
+    const expectedInput = isLastWord ? currentWord : currentWord + " ";
+    
+    // Normalize quotes for comparison
+    if (normalizeQuotes(value) === normalizeQuotes(expectedInput)) {
       // Word completed correctly
       const newWordsCompleted = wordsCompleted + 1;
       setWordsCompleted(newWordsCompleted);
@@ -99,7 +109,8 @@ function RacePage() {
     }
   };
 
-  const isCorrectSoFar = currentWord?.startsWith(currentInput) || false;
+  const expectedInput = isLastWord ? currentWord : currentWord + " ";
+  const isCorrectSoFar = normalizeQuotes(expectedInput)?.startsWith(normalizeQuotes(currentInput)) || false;
 
   return (
     <div className="max-w-6xl mx-auto">
@@ -146,9 +157,17 @@ function RacePage() {
             </div>
             
             <div className="text-sm opacity-70 mt-4">
-              <div className="flex gap-2">
-                <span className="font-semibold">Source:</span>
-                <span>{room.paragraph.bookTitle} → {room.paragraph.sequenceTitle} → {room.paragraph.articleTitle}</span>
+              <div className="flex flex-col gap-1">
+                <div className="flex gap-2">
+                  <span className="font-semibold">Source:</span>
+                  <span>{room.paragraph.bookTitle} → {room.paragraph.sequenceTitle} → {room.paragraph.articleTitle}</span>
+                </div>
+                <div className="flex gap-2">
+                  <span className="font-semibold">Article:</span>
+                  <a href={room.paragraph.articleUrl} target="_blank" rel="noopener noreferrer" className="link link-primary">
+                    View original article
+                  </a>
+                </div>
               </div>
             </div>
           </div>
