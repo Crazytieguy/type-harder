@@ -34,6 +34,7 @@ export default defineSchema({
     userId: v.id("users"),
     gameRoomId: v.id("gameRooms"),
     wordsCompleted: v.number(),
+    typedText: v.optional(v.string()),
     finishedAt: v.optional(v.number()),
     isReady: v.boolean(),
   })

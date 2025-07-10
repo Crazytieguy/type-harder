@@ -32,7 +32,7 @@ function RacePage() {
       if (currentRoom && user) {
         const updatedPlayers = currentRoom.players.map(player => {
           if (player.name === user.fullName) {
-            return { ...player, wordsCompleted: args.wordsCompleted };
+            return { ...player, wordsCompleted: args.wordsCompleted, typedText: args.typedText };
           }
           return player;
         });
@@ -47,6 +47,7 @@ function RacePage() {
   
   const [typedText, setTypedText] = useState("");
   const [wordsCompleted, setWordsCompleted] = useState(0);
+  const [hasRestoredProgress, setHasRestoredProgress] = useState(false);
   const [errorPosition, setErrorPosition] = useState<number | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -81,16 +82,29 @@ function RacePage() {
   const normalizeQuotes = (text: string) => {
     // Only normalize the most common smart quotes
     return text
-      .replace(/[“”]/g, '"')  // Smart double quotes
-      .replace(/[‘’]/g, "'"); // Smart single quotes
+      .replace(/[\u201C\u201D]/g, '"')  // Smart double quotes
+      .replace(/[\u2018\u2019]/g, "'"); // Smart single quotes
   };
   
   const normalizeChar = (char: string) => {
     // Simple character normalization for comparison
-    if (char === '“' || char === '”') return '"';
-    if (char === '‘' || char === '’') return "'";
+    if (char === '\u201C' || char === '\u201D') return '"';
+    if (char === '\u2018' || char === '\u2019') return "'";
     return char;
   };
+  
+  const currentPlayer = roomLive?.players.find(p => {
+    return user && p.name === user.fullName;
+  });
+  
+  // Restore typed text from database on mount
+  useEffect(() => {
+    if (!hasRestoredProgress && currentPlayer?.typedText && room?.status === "playing") {
+      setTypedText(currentPlayer.typedText);
+      setWordsCompleted(currentPlayer.wordsCompleted);
+      setHasRestoredProgress(true);
+    }
+  }, [currentPlayer?.typedText, currentPlayer?.wordsCompleted, hasRestoredProgress, room?.status]);
 
   if (!room || room.status !== "playing" || !room.paragraph) {
     return (
@@ -104,11 +118,6 @@ function RacePage() {
   // Extract typing content (without markdown) for validation
   const typingContent = normalizeQuotes(extractTypingContent(room.paragraph.content));
   const typingWords = typingContent.split(/\s+/).filter(word => word.length > 0);
-  
-  const currentPlayer = room.players.find(p => {
-    const playerUser = roomLive?.players.find(rp => rp._id === p._id);
-    return playerUser && user && playerUser.name === user.fullName;
-  });
 
   const elapsedSeconds = roomLive?.startTime 
     ? (Date.now() - roomLive.startTime) / 1000 
@@ -349,7 +358,7 @@ function RacePage() {
       
       // Update backend with optimistic update
       try {
-        await updateProgress({ roomCode, wordsCompleted: newWordsCompleted });
+        await updateProgress({ roomCode, wordsCompleted: newWordsCompleted, typedText: newTypedText });
       } catch (err) {
         console.error("Failed to update progress:", err);
       }

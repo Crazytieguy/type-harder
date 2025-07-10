@@ -317,8 +317,9 @@ export const updateProgress = mutation({
   args: {
     roomCode: v.string(),
     wordsCompleted: v.number(),
+    typedText: v.string(),
   },
-  handler: async (ctx, { roomCode, wordsCompleted }) => {
+  handler: async (ctx, { roomCode, wordsCompleted, typedText }) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
       throw new ConvexError("Not authenticated");
@@ -369,6 +370,7 @@ export const updateProgress = mutation({
     // Update progress
     const updates: Partial<Doc<"players">> = {
       wordsCompleted,
+      typedText,
     };
 
     // Check if finished
