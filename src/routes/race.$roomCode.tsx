@@ -1,10 +1,11 @@
+import { useUser } from "@clerk/clerk-react";
 import { convexQuery } from "@convex-dev/react-query";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery } from "convex/react";
+import type { JSX } from "react";
 import { useEffect, useRef, useState } from "react";
 import { api } from "../../convex/_generated/api";
-import { useUser } from "@clerk/clerk-react";
 
 export const Route = createFileRoute("/race/$roomCode")({
   loader: async ({ context: { queryClient }, params: { roomCode } }) => {
@@ -25,11 +26,28 @@ function RacePage() {
   // Polling for real-time updates
   const roomLive = useQuery(api.games.getRoom, { roomCode });
   
-  const updateProgress = useMutation(api.games.updateProgress);
+  const updateProgress = useMutation(api.games.updateProgress).withOptimisticUpdate(
+    (localStore, args) => {
+      const currentRoom = localStore.getQuery(api.games.getRoom, { roomCode });
+      if (currentRoom && user) {
+        const updatedPlayers = currentRoom.players.map(player => {
+          if (player.name === user.fullName) {
+            return { ...player, wordsCompleted: args.wordsCompleted };
+          }
+          return player;
+        });
+        localStore.setQuery(
+          api.games.getRoom, 
+          { roomCode }, 
+          { ...currentRoom, players: updatedPlayers }
+        );
+      }
+    }
+  );
   
-  const [currentInput, setCurrentInput] = useState("");
-  const [currentWordIndex, setCurrentWordIndex] = useState(0);
+  const [typedText, setTypedText] = useState("");
   const [wordsCompleted, setWordsCompleted] = useState(0);
+  const [errorPosition, setErrorPosition] = useState<number | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Navigate to results if game is finished
@@ -38,6 +56,41 @@ function RacePage() {
       void navigate({ to: "/results/$roomCode", params: { roomCode } });
     }
   }, [roomLive?.status, navigate, roomCode]);
+
+  // Keep input focused
+  useEffect(() => {
+    if (inputRef.current && room?.status === "playing") {
+      inputRef.current.focus();
+    }
+  }, [room?.status]);
+
+  // Extract plain text from markdown for typing (removes formatting and links)
+  const extractTypingContent = (markdown: string) => {
+    return markdown
+      // Remove links: [text](url) -> text
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+      // Remove bold: **text** -> text
+      .replace(/\*\*([^*]+)\*\*/g, '$1')
+      // Remove italic: *text* -> text (but not ** patterns)
+      .replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, '$1')
+      // Normalize multiple spaces to single space
+      .replace(/\s+/g, ' ')
+      .trim();
+  };
+
+  const normalizeQuotes = (text: string) => {
+    // Only normalize the most common smart quotes
+    return text
+      .replace(/[“”]/g, '"')  // Smart double quotes
+      .replace(/[‘’]/g, "'"); // Smart single quotes
+  };
+  
+  const normalizeChar = (char: string) => {
+    // Simple character normalization for comparison
+    if (char === '“' || char === '”') return '"';
+    if (char === '‘' || char === '’') return "'";
+    return char;
+  };
 
   if (!room || room.status !== "playing" || !room.paragraph) {
     return (
@@ -48,9 +101,9 @@ function RacePage() {
     );
   }
 
-  const words = room.paragraph.content.split(" ");
-  const currentWord = words[currentWordIndex];
-  const isLastWord = currentWordIndex === words.length - 1;
+  // Extract typing content (without markdown) for validation
+  const typingContent = normalizeQuotes(extractTypingContent(room.paragraph.content));
+  const typingWords = typingContent.split(/\s+/).filter(word => word.length > 0);
   
   const currentPlayer = room.players.find(p => {
     const playerUser = roomLive?.players.find(rp => rp._id === p._id);
@@ -65,52 +118,256 @@ function RacePage() {
     ? Math.round((wordsCompleted / elapsedSeconds) * 60) 
     : 0;
 
-  const normalizeQuotes = (text: string) => {
-    // Replace curly/smart quotes with regular quotes
-    return text
-      .replace(/[""]/g, '"')  // Replace smart double quotes
-      .replace(/['']/g, "'"); // Replace smart single quotes
+
+  // Character status helper
+  const getCharacterStatus = (
+    position: number,
+    typed: string
+  ): 'typed-correct' | 'typed-incorrect' | 'current' | 'untyped' => {
+    if (position >= typed.length) {
+      return position === typed.length ? 'current' : 'untyped';
+    }
+    
+    // Check if this character was typed correctly
+    // Normalize both characters for comparison
+    const expectedChar = normalizeChar(typingContent[position]);
+    const typedChar = normalizeChar(typed[position]);
+    return expectedChar === typedChar ? 'typed-correct' : 'typed-incorrect';
+  };
+
+  // Render a single character with status
+  const renderCharacter = (char: string, status: 'typed-correct' | 'typed-incorrect' | 'current' | 'untyped', key: number, position: number) => {
+    let className = "";
+    
+    switch (status) {
+      case 'typed-correct':
+        className = "text-success";
+        break;
+      case 'typed-incorrect':
+        className = "bg-error text-error-content";
+        break;
+      case 'current':
+        className = "relative";
+        break;
+      case 'untyped':
+        className = "text-base-content/50";
+        break;
+    }
+    
+    // Add shake animation for error feedback at specific position
+    if (errorPosition === position) {
+      className = "bg-error text-error-content animate-[shake_0.2s_ease-in-out] font-bold";
+    }
+    
+    // Special rendering for cursor position
+    if (status === 'current') {
+      // Make spaces visible when they're the current character
+      const displayChar = char === ' ' ? '\u00A0' : char; // Use non-breaking space for visibility
+      return (
+        <span key={key} className="relative inline-block">
+          <span className="absolute -left-[1px] top-0 bottom-0 w-[2px] bg-primary animate-pulse"></span>
+          <span className={`${className} ${char === ' ' ? 'bg-base-content/10' : ''}`}>{displayChar}</span>
+        </span>
+      );
+    }
+    
+    return (
+      <span key={key} className={className}>
+        {char}
+      </span>
+    );
+  };
+
+  // Render the paragraph with markdown formatting and character status
+  const renderFormattedParagraph = () => {
+    const displayText = room.paragraph?.content || "";
+    const elements: JSX.Element[] = [];
+    
+    let displayPos = 0;
+    let typingPos = 0;
+    let key = 0;
+    
+    // Parse and render the markdown while tracking positions
+    while (displayPos < displayText.length) {
+      // Check for bold at current position
+      if (displayText.substring(displayPos).startsWith('**')) {
+        const endIndex = displayText.indexOf('**', displayPos + 2);
+        if (endIndex !== -1) {
+          // Skip the opening **
+          displayPos += 2;
+          const boldContent: JSX.Element[] = [];
+          
+          // Process characters inside bold
+          while (displayPos < endIndex) {
+            const char = displayText[displayPos];
+            const status = getCharacterStatus(typingPos, typedText);
+            boldContent.push(renderCharacter(char, status, key++, typingPos));
+            displayPos++;
+            typingPos++;
+          }
+          
+          elements.push(<strong key={`bold-${key++}`}>{boldContent}</strong>);
+          displayPos += 2; // Skip closing **
+          continue;
+        }
+      }
+      
+      // Check for italic at current position
+      if (displayText.substring(displayPos).startsWith('*') && 
+          !displayText.substring(displayPos).startsWith('**')) {
+        const endIndex = displayText.indexOf('*', displayPos + 1);
+        if (endIndex !== -1) {
+          // Skip the opening *
+          displayPos += 1;
+          const italicContent: JSX.Element[] = [];
+          
+          // Process characters inside italic
+          while (displayPos < endIndex) {
+            const char = displayText[displayPos];
+            const status = getCharacterStatus(typingPos, typedText);
+            italicContent.push(renderCharacter(char, status, key++, typingPos));
+            displayPos++;
+            typingPos++;
+          }
+          
+          elements.push(<em key={`italic-${key++}`}>{italicContent}</em>);
+          displayPos += 1; // Skip closing *
+          continue;
+        }
+      }
+      
+      // Check for link at current position
+      if (displayText.substring(displayPos).startsWith('[')) {
+        const linkEndIndex = displayText.indexOf('](', displayPos);
+        if (linkEndIndex !== -1) {
+          const urlEndIndex = displayText.indexOf(')', linkEndIndex);
+          if (urlEndIndex !== -1) {
+            // Process link text
+            displayPos += 1; // Skip [
+            const linkContent: JSX.Element[] = [];
+            
+            while (displayPos < linkEndIndex) {
+              const char = displayText[displayPos];
+              const status = getCharacterStatus(typingPos, typedText);
+              linkContent.push(renderCharacter(char, status, key++, typingPos));
+              displayPos++;
+              typingPos++;
+            }
+            
+            elements.push(<span key={`link-${key++}`}>{linkContent}</span>);
+            
+            // Skip the ](url) part
+            displayPos = urlEndIndex + 1;
+            continue;
+          }
+        }
+      }
+      
+      // Regular character
+      const char = displayText[displayPos];
+      const status = getCharacterStatus(typingPos, typedText);
+      elements.push(renderCharacter(char, status, key++, typingPos));
+      displayPos++;
+      typingPos++;
+    }
+    
+    // Add cursor at the end if we've typed everything
+    if (typedText.length === typingContent.length) {
+      elements.push(
+        <span key={`cursor-${key++}`} className="relative inline-block">
+          <span className="absolute -left-[1px] top-0 bottom-0 w-[2px] bg-primary animate-pulse"></span>
+          <span>&nbsp;</span>
+        </span>
+      );
+    }
+    
+    return elements;
   };
 
   const handleInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
+    const newTypedText = normalizeQuotes(e.target.value);
     
-    // Prevent typing spaces at the beginning
-    if (value.startsWith(" ")) {
+    // Clear error feedback
+    setErrorPosition(null);
+    
+    // Block all deletion - only allow forward typing
+    if (newTypedText.length < typedText.length) {
       return;
     }
     
-    setCurrentInput(value);
+    // Only allow typing if it matches the expected text
+    if (newTypedText.length > typingContent.length) {
+      return; // Don't allow typing beyond the paragraph
+    }
     
-    // Check if the current word (with space for non-last words) is typed correctly
-    const expectedInput = isLastWord ? currentWord : currentWord + " ";
+    // Check if what they're typing matches what's expected
+    // Compare character by character with normalization
+    let matches = true;
+    for (let i = 0; i < newTypedText.length; i++) {
+      const expectedChar = normalizeChar(typingContent[i]);
+      const typedChar = normalizeChar(newTypedText[i]);
+      if (expectedChar !== typedChar) {
+        matches = false;
+        break;
+      }
+    }
     
-    // Normalize quotes for comparison
-    if (normalizeQuotes(value) === normalizeQuotes(expectedInput)) {
-      // Word completed correctly
-      const newWordsCompleted = wordsCompleted + 1;
+    if (!matches) {
+      // Show error feedback at the position they're trying to type
+      setErrorPosition(typedText.length);
+      setTimeout(() => setErrorPosition(null), 300);
+      return;
+    }
+    
+    setTypedText(newTypedText);
+    
+    // Count completed words
+    let newWordsCompleted = 0;
+    let charIndex = 0;
+    
+    for (let i = 0; i < typingWords.length; i++) {
+      const word = typingWords[i];
+      const wordStartIndex = typingContent.indexOf(word, charIndex);
+      const wordEndIndex = wordStartIndex + word.length;
+      const isLastWord = i === typingWords.length - 1;
+      
+      // Check if we've typed past this word (or completed the last word)
+      if (newTypedText.length > wordEndIndex || 
+          (isLastWord && newTypedText.length === wordEndIndex)) {
+        // We've completed this word
+        newWordsCompleted++;
+        charIndex = wordEndIndex;
+      } else {
+        // Haven't completed this word yet
+        break;
+      }
+    }
+    
+    // Update progress if we've completed more words
+    if (newWordsCompleted > wordsCompleted) {
       setWordsCompleted(newWordsCompleted);
       
-      // Update backend
+      // Update backend with optimistic update
       try {
         await updateProgress({ roomCode, wordsCompleted: newWordsCompleted });
       } catch (err) {
         console.error("Failed to update progress:", err);
       }
       
-      if (!isLastWord) {
-        // Move to next word
-        setCurrentWordIndex(currentWordIndex + 1);
-        setCurrentInput("");
-      } else {
-        // Race finished!
-        setCurrentInput(value); // Keep the final word visible
+      // If we've completed all words and typed the full content, we're done
+      if (newWordsCompleted === typingWords.length && newTypedText.length === typingContent.length) {
+        // Navigation will happen via the useEffect when the backend updates
+        console.log("Race completed! Waiting for backend to update...");
       }
     }
   };
 
-  const expectedInput = isLastWord ? currentWord : currentWord + " ";
-  const isCorrectSoFar = normalizeQuotes(expectedInput)?.startsWith(normalizeQuotes(currentInput)) || false;
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    // Prevent default behavior for certain keys if at the end
+    if (typedText.length === typingContent.length && e.key !== "Backspace") {
+      e.preventDefault();
+    }
+  };
 
   return (
     <div className="max-w-6xl mx-auto">
@@ -123,7 +380,7 @@ function RacePage() {
           </div>
           <div>
             <span className="opacity-70">Progress: </span>
-            <span className="font-bold text-primary">{wordsCompleted}/{words.length}</span>
+            <span className="font-bold text-primary">{wordsCompleted}/{typingWords.length}</span>
           </div>
         </div>
       </div>
@@ -132,28 +389,11 @@ function RacePage() {
         {/* Paragraph Display */}
         <div className="card bg-base-200 mb-6">
           <div className="card-body">
-            <div className="text-lg leading-relaxed font-mono">
-              {words.map((word, index) => {
-                const isCompleted = index < currentWordIndex;
-                const isCurrent = index === currentWordIndex;
-                const isTyped = isCurrent && currentInput.length > 0;
-                
-                return (
-                  <span key={index}>
-                    <span
-                      className={`
-                        ${isCompleted ? "text-success" : ""}
-                        ${isCurrent && !isCorrectSoFar ? "bg-error/20" : ""}
-                        ${isCurrent && isCorrectSoFar && isTyped ? "bg-primary/20" : ""}
-                        ${isCurrent && !isTyped ? "bg-base-content/10" : ""}
-                      `}
-                    >
-                      {word}
-                    </span>
-                    {index < words.length - 1 && " "}
-                  </span>
-                );
-              })}
+            <div 
+              className="text-lg leading-relaxed font-mono cursor-text select-none"
+              onClick={() => inputRef.current?.focus()}
+            >
+              {renderFormattedParagraph()}
             </div>
             
             <div className="text-sm opacity-70 mt-4">
@@ -173,22 +413,26 @@ function RacePage() {
           </div>
         </div>
 
-        {/* Input Field */}
-        <div className="card bg-base-100 border border-base-300 mb-6">
-          <div className="card-body">
-            <input
-              ref={inputRef}
-              type="text"
-              value={currentInput}
-              onChange={(e) => void handleInputChange(e)}
-              className={`input input-lg font-mono w-full ${
-                !isCorrectSoFar && currentInput ? "input-error" : ""
-              }`}
-              placeholder="Type the current word..."
-              disabled={wordsCompleted === words.length}
-              autoFocus
-            />
-          </div>
+        {/* Hidden Input Field for capturing keystrokes */}
+        <input
+          ref={inputRef}
+          type="text"
+          value={typedText}
+          onChange={(e) => void handleInputChange(e)}
+          onKeyDown={handleKeyDown}
+          className="absolute -left-[10000px] top-0 w-1 h-1"
+          disabled={typedText.length === typingContent.length}
+          autoFocus
+          aria-label="Type the paragraph"
+        />
+        
+        {/* Helpful hint */}
+        <div className="text-center text-sm opacity-70 mb-6">
+          {typedText.length === typingContent.length ? (
+            <span className="text-success">Race completed! 🎉</span>
+          ) : (
+            <span>Click on the paragraph above and start typing</span>
+          )}
         </div>
 
         {/* Progress Bars */}
@@ -197,7 +441,7 @@ function RacePage() {
             <h2 className="card-title mb-4">Race Progress</h2>
             <div className="space-y-3">
               {roomLive?.players.map((player) => {
-                const playerProgress = (player.wordsCompleted / words.length) * 100;
+                const playerProgress = (player.wordsCompleted / typingWords.length) * 100;
                 const playerWpm = elapsedSeconds > 0 
                   ? Math.round((player.wordsCompleted / elapsedSeconds) * 60) 
                   : 0;
