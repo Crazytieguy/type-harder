@@ -1,7 +1,7 @@
-import { useUser } from "@clerk/clerk-react";
-import { useMutation } from "convex/react";
+import { useConvexMutation } from "@convex-dev/react-query";
+import { useMutation } from "@tanstack/react-query";
 import type { JSX } from "react";
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { api } from "../../../convex/_generated/api";
 import type { RoomWithGame } from "../../types/room";
 
@@ -9,73 +9,67 @@ interface RaceViewProps {
   room: RoomWithGame;
 }
 
-export default function RaceView({ room: { roomCode, game, ...room } }: RaceViewProps) {
-  const { user } = useUser();
-  const updateProgress = useMutation(api.games.updateProgress).withOptimisticUpdate(
-    (localStore, args) => {
-      if (room && user) {
-        const currentRoom = localStore.getQuery(api.games.getRoom, { roomCode });
-        if (currentRoom && currentRoom.game) {
-          const updatedPlayers = currentRoom.game.players.map((player: any) => {
-            if (player.name === user.fullName) {
-              return { ...player, wordsCompleted: args.wordsCompleted, typedText: args.typedText };
-            }
-            return player;
-          });
-          localStore.setQuery(
-            api.games.getRoom, 
-            { roomCode }, 
-            { 
-              ...currentRoom, 
-              game: {
-                ...currentRoom.game,
-                players: updatedPlayers
-              }
-            }
-          );
-        }
-      }
-    }
-  );
-  
-  const [typedText, setTypedText] = useState("");
-  const [wordsCompleted, setWordsCompleted] = useState(0);
-  const [hasRestoredProgress, setHasRestoredProgress] = useState(false);
-  const [errorPosition, setErrorPosition] = useState<number | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  const currentPlayer = game?.players?.find((p: any) => {
-    return user && p.name === user.fullName;
-  });
-  
-  // Restore typed text from database on mount
-  useEffect(() => {
-    if (!hasRestoredProgress && currentPlayer?.typedText && game?.status === "playing") {
-      setTypedText(currentPlayer.typedText);
-      setWordsCompleted(currentPlayer.wordsCompleted);
-      setHasRestoredProgress(true);
-    }
-  }, [currentPlayer?.typedText, currentPlayer?.wordsCompleted, hasRestoredProgress, game?.status]);
-
-  // Keep input focused
-  useEffect(() => {
-    if (inputRef.current) {
-      inputRef.current.focus();
-    }
-  }, []);
-
-  if (!game || game.status !== "playing" || !game.paragraph) {
-    return (
-      <div className="text-center">
-        <h1>Race Not Active</h1>
-        <p>This race hasn't started yet or has already finished.</p>
-      </div>
-    );
+// Character status helper
+const getCharacterStatus = (
+  position: number,
+  typedLength: number
+): 'typed-correct' | 'typed-incorrect' | 'current' | 'untyped' => {
+  if (position >= typedLength) {
+    return position === typedLength ? 'current' : 'untyped';
   }
+  
+  // For now, we assume all typed characters are correct
+  // since we validate on input
+  return 'typed-correct';
+};
 
+export default function RaceView({ room: { roomCode, game, ...room } }: RaceViewProps) {
+  const currentPlayer = game.players.find((p) => p.userId === room.currentUserId);
+  const wordsCompleted = currentPlayer?.wordsCompleted ?? 0;
+  
   // Extract typing content (without markdown) for validation
   const typingContent = normalizeQuotes(extractTypingContent(game.paragraph.content));
-  const typingWords = typingContent.split(/\s+/).filter((word: string) => word.length > 0);
+  const wordEndIndices: number[] = [];
+  const matches = typingContent.matchAll(/\s(?=\S)/g);
+  for (const match of matches) {
+    wordEndIndices.push(match.index + 1);
+  }
+  wordEndIndices.push(typingContent.length);
+  const completedIdx = wordEndIndices[wordsCompleted - 1] ?? 0;
+  const completedText = typingContent.slice(0, completedIdx);
+
+  const [currentIdx, setCurrentIdx] = useState(completedIdx);
+  const [errorPosition, setErrorPosition] = useState<number | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  
+  const currentWordProgress = typingContent.slice(completedIdx, currentIdx);
+
+  const { mutate: updateProgress } = useMutation({
+    mutationFn: useConvexMutation(
+      api.games.updateProgress,
+    ).withOptimisticUpdate((localStore, args) => {
+      const currentRoom = localStore.getQuery(api.games.getRoom, { roomCode });
+      if (currentRoom && currentRoom.game) {
+        const updatedPlayers = currentRoom.game.players.map((player) => {
+          if (player.userId === room.currentUserId) {
+            return { ...player, wordsCompleted: args.wordsCompleted };
+          }
+          return player;
+        });
+        localStore.setQuery(
+          api.games.getRoom,
+          { roomCode },
+          {
+            ...currentRoom,
+            game: {
+              ...currentRoom.game,
+              players: updatedPlayers,
+            },
+          },
+        );
+      }
+    }),
+  });
 
   const elapsedSeconds = game?.startTime 
     ? (Date.now() - game.startTime) / 1000 
@@ -85,21 +79,6 @@ export default function RaceView({ room: { roomCode, game, ...room } }: RaceView
     ? Math.round((wordsCompleted / elapsedSeconds) * 60) 
     : 0;
 
-  // Character status helper
-  const getCharacterStatus = (
-    position: number,
-    typed: string
-  ): 'typed-correct' | 'typed-incorrect' | 'current' | 'untyped' => {
-    if (position >= typed.length) {
-      return position === typed.length ? 'current' : 'untyped';
-    }
-    
-    // Check if this character was typed correctly
-    // Normalize both characters for comparison
-    const expectedChar = normalizeChar(typingContent[position]);
-    const typedChar = normalizeChar(typed[position]);
-    return expectedChar === typedChar ? 'typed-correct' : 'typed-incorrect';
-  };
 
   // Render a single character with status
   const renderCharacter = (char: string, status: 'typed-correct' | 'typed-incorrect' | 'current' | 'untyped', key: number, position: number) => {
@@ -132,7 +111,7 @@ export default function RaceView({ room: { roomCode, game, ...room } }: RaceView
       return (
         <span key={key} className="relative inline-block">
           <span className="absolute -left-[1px] top-0 bottom-0 w-[2px] bg-primary animate-pulse"></span>
-          <span className={`${className} ${char === ' ' ? 'bg-base-content/10' : ''}`}>{displayChar}</span>
+          <span className={className}>{displayChar}</span>
         </span>
       );
     }
@@ -166,7 +145,7 @@ export default function RaceView({ room: { roomCode, game, ...room } }: RaceView
           // Process characters inside bold
           while (displayPos < endIndex) {
             const char = displayText[displayPos];
-            const status = getCharacterStatus(typingPos, typedText);
+            const status = getCharacterStatus(typingPos, currentIdx);
             boldContent.push(renderCharacter(char, status, key++, typingPos));
             displayPos++;
             typingPos++;
@@ -190,7 +169,7 @@ export default function RaceView({ room: { roomCode, game, ...room } }: RaceView
           // Process characters inside italic
           while (displayPos < endIndex) {
             const char = displayText[displayPos];
-            const status = getCharacterStatus(typingPos, typedText);
+            const status = getCharacterStatus(typingPos, currentIdx);
             italicContent.push(renderCharacter(char, status, key++, typingPos));
             displayPos++;
             typingPos++;
@@ -214,7 +193,7 @@ export default function RaceView({ room: { roomCode, game, ...room } }: RaceView
             
             while (displayPos < linkEndIndex) {
               const char = displayText[displayPos];
-              const status = getCharacterStatus(typingPos, typedText);
+              const status = getCharacterStatus(typingPos, currentIdx);
               linkContent.push(renderCharacter(char, status, key++, typingPos));
               displayPos++;
               typingPos++;
@@ -231,14 +210,14 @@ export default function RaceView({ room: { roomCode, game, ...room } }: RaceView
       
       // Regular character
       const char = displayText[displayPos];
-      const status = getCharacterStatus(typingPos, typedText);
+      const status = getCharacterStatus(typingPos, currentIdx);
       elements.push(renderCharacter(char, status, key++, typingPos));
       displayPos++;
       typingPos++;
     }
     
     // Add cursor at the end if we've typed everything
-    if (typedText.length === typingContent.length) {
+    if (currentIdx === typingContent.length) {
       elements.push(
         <span key={`cursor-${key++}`} className="relative inline-block">
           <span className="absolute -left-[1px] top-0 bottom-0 w-[2px] bg-primary animate-pulse"></span>
@@ -251,27 +230,29 @@ export default function RaceView({ room: { roomCode, game, ...room } }: RaceView
   };
 
   const handleInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newTypedText = normalizeQuotes(e.target.value);
+    const newInput = normalizeQuotes(e.target.value);
     
     // Clear error feedback
     setErrorPosition(null);
     
+    // Calculate the full typed text (what was completed + new input)
+    const potentialFullText = completedText + newInput;
+
     // Block all deletion - only allow forward typing
-    if (newTypedText.length < typedText.length) {
+    if (potentialFullText.length < currentIdx) {
       return;
     }
     
-    // Only allow typing if it matches the expected text
-    if (newTypedText.length > typingContent.length) {
-      return; // Don't allow typing beyond the paragraph
+    // Don't allow typing beyond the paragraph
+    if (potentialFullText.length > typingContent.length) {
+      return;
     }
     
     // Check if what they're typing matches what's expected
-    // Compare character by character with normalization
     let matches = true;
-    for (let i = 0; i < newTypedText.length; i++) {
+    for (let i = currentIdx; i < potentialFullText.length; i++) {
       const expectedChar = normalizeChar(typingContent[i]);
-      const typedChar = normalizeChar(newTypedText[i]);
+      const typedChar = normalizeChar(potentialFullText[i]);
       if (expectedChar !== typedChar) {
         matches = false;
         break;
@@ -280,56 +261,26 @@ export default function RaceView({ room: { roomCode, game, ...room } }: RaceView
     
     if (!matches) {
       // Show error feedback at the position they're trying to type
-      setErrorPosition(typedText.length);
+      setErrorPosition(currentIdx);
       setTimeout(() => setErrorPosition(null), 300);
       return;
     }
     
-    setTypedText(newTypedText);
+    // Update current word progress - this is everything after completed text
+    setCurrentIdx(potentialFullText.length);
     
-    // Count completed words
-    let newWordsCompleted = 0;
-    let charIndex = 0;
-    
-    for (let i = 0; i < typingWords.length; i++) {
-      const word = typingWords[i];
-      const wordStartIndex = typingContent.indexOf(word, charIndex);
-      const wordEndIndex = wordStartIndex + word.length;
-      const isLastWord = i === typingWords.length - 1;
-      
-      // Check if we've typed past this word (or completed the last word)
-      if (newTypedText.length > wordEndIndex || 
-          (isLastWord && newTypedText.length === wordEndIndex)) {
-        // We've completed this word
-        newWordsCompleted++;
-        charIndex = wordEndIndex;
-      } else {
-        // Haven't completed this word yet
-        break;
-      }
-    }
-    
-    // Update progress if we've completed more words
-    if (newWordsCompleted > wordsCompleted) {
-      setWordsCompleted(newWordsCompleted);
-      
-      // Update backend with optimistic update
+    if (potentialFullText.length >= wordEndIndices[wordsCompleted]) {
       try {
-        await updateProgress({ roomCode, wordsCompleted: newWordsCompleted, typedText: newTypedText });
+        updateProgress({ roomCode, wordsCompleted: wordsCompleted + 1 });
       } catch (err) {
         console.error("Failed to update progress:", err);
-      }
-      
-      // If we've completed all words and typed the full content, we're done
-      if (newWordsCompleted === typingWords.length && newTypedText.length === typingContent.length) {
-        // Navigation will happen via the useEffect when the backend updates
       }
     }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     // Prevent default behavior for certain keys if at the end
-    if (typedText.length === typingContent.length && e.key !== "Backspace") {
+    if (currentIdx === typingContent.length && e.key !== "Backspace") {
       e.preventDefault();
     }
   };
@@ -345,7 +296,7 @@ export default function RaceView({ room: { roomCode, game, ...room } }: RaceView
           </div>
           <div>
             <span className="opacity-70">Progress: </span>
-            <span className="font-bold text-primary">{wordsCompleted}/{typingWords.length}</span>
+            <span className="font-bold text-primary">{wordsCompleted}/{wordEndIndices.length - 1}</span>
           </div>
         </div>
       </div>
@@ -382,18 +333,18 @@ export default function RaceView({ room: { roomCode, game, ...room } }: RaceView
         <input
           ref={inputRef}
           type="text"
-          value={typedText}
+          value={currentWordProgress}
           onChange={(e) => void handleInputChange(e)}
           onKeyDown={handleKeyDown}
           className="absolute -left-[10000px] top-0 w-1 h-1"
-          disabled={typedText.length === typingContent.length}
+          disabled={currentIdx === typingContent.length}
           autoFocus
           aria-label="Type the paragraph"
         />
         
         {/* Helpful hint */}
         <div className="text-center text-sm opacity-70 mb-6">
-          {typedText.length === typingContent.length ? (
+          {currentIdx === typingContent.length ? (
             <span className="text-success">Race completed! 🎉</span>
           ) : (
             <span>Click on the paragraph above and start typing</span>
@@ -406,7 +357,7 @@ export default function RaceView({ room: { roomCode, game, ...room } }: RaceView
             <h2 className="card-title mb-4">Race Progress</h2>
             <div className="space-y-3">
               {game?.players?.map((player: any) => {
-                const playerProgress = (player.wordsCompleted / typingWords.length) * 100;
+                const playerProgress = (player.wordsCompleted / (wordEndIndices.length - 1)) * 100;
                 const playerWpm = elapsedSeconds > 0 
                   ? Math.round((player.wordsCompleted / elapsedSeconds) * 60) 
                   : 0;
@@ -451,7 +402,7 @@ const extractTypingContent = (markdown: string) => {
     // Remove italic: *text* -> text (but not ** patterns)
     .replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, '$1')
     // Normalize multiple spaces to single space
-    .replace(/\s+/g, ' ')
+    .replace(/ +/g, ' ')
     .trim();
 };
 

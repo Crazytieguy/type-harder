@@ -48,7 +48,6 @@ export default defineSchema({
     userId: v.id("users"),
     gameId: v.id("games"),
     wordsCompleted: v.number(),
-    typedText: v.string(),
     finishedAt: v.optional(v.number()),
   })
     .index("by_game", ["gameId"])

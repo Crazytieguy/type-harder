@@ -1,6 +1,6 @@
 import { ConvexError, v } from "convex/values";
-import { mutation, query } from "./_generated/server";
 import { Doc } from "./_generated/dataModel";
+import { mutation, query } from "./_generated/server";
 
 // Generate a random 6-character room code
 function generateRoomCode(): string {
@@ -190,6 +190,9 @@ export const getRoom = query({
     if (activeGame) {
       // Get paragraph details
       const paragraph = await ctx.db.get(activeGame.selectedParagraphId);
+      if (!paragraph) {
+        throw new ConvexError("Paragraph not found");
+      }
 
       // Get game players
       const gamePlayers = await ctx.db
@@ -378,7 +381,6 @@ export const startGame = mutation({
         userId: member.userId,
         gameId,
         wordsCompleted: 0,
-        typedText: "",
       });
     }
   },
@@ -389,9 +391,8 @@ export const updateProgress = mutation({
   args: {
     roomCode: v.string(),
     wordsCompleted: v.number(),
-    typedText: v.string(),
   },
-  handler: async (ctx, { roomCode, wordsCompleted, typedText }) => {
+  handler: async (ctx, { roomCode, wordsCompleted }) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
       throw new ConvexError("Not authenticated");
@@ -449,7 +450,6 @@ export const updateProgress = mutation({
     // Update progress
     const updates: Partial<Doc<"players">> = {
       wordsCompleted,
-      typedText,
     };
 
     // Check if finished
