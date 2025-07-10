@@ -226,7 +226,79 @@ export default function RaceView({ room: { roomCode, game, ...room } }: RaceView
       );
     }
     
-    return elements;
+    // Post-process to group characters into words
+    const finalElements: JSX.Element[] = [];
+    let wordChars: JSX.Element[] = [];
+    let wordIdx = 0;
+    
+    for (const element of elements) {
+      // Check if this is a formatting element (strong, em, etc)
+      if (element.type === 'strong' || element.type === 'em') {
+        // Process the children of the formatting element
+        const formattedContent = Array.isArray(element.props.children) 
+          ? element.props.children 
+          : [element.props.children];
+        
+        const processedChildren: JSX.Element[] = [];
+        let formattedWordChars: JSX.Element[] = [];
+        
+        for (const child of formattedContent) {
+          if (child.props?.children === ' ' || child.props?.children === '\u00A0') {
+            if (formattedWordChars.length > 0) {
+              processedChildren.push(
+                <span key={`fw-${wordIdx++}`} className="inline-block">
+                  {formattedWordChars}
+                </span>
+              );
+              formattedWordChars = [];
+            }
+            processedChildren.push(child);
+          } else {
+            formattedWordChars.push(child);
+          }
+        }
+        
+        if (formattedWordChars.length > 0) {
+          processedChildren.push(
+            <span key={`fw-${wordIdx++}`} className="inline-block">
+              {formattedWordChars}
+            </span>
+          );
+        }
+        
+        // Recreate the formatting element with processed children
+        if (element.type === 'strong') {
+          finalElements.push(<strong key={element.key}>{processedChildren}</strong>);
+        } else if (element.type === 'em') {
+          finalElements.push(<em key={element.key}>{processedChildren}</em>);
+        }
+      } else if (element.props?.children === ' ' || element.props?.children === '\u00A0') {
+        // This is a space character
+        if (wordChars.length > 0) {
+          finalElements.push(
+            <span key={`w-${wordIdx++}`} className="inline-block">
+              {wordChars}
+            </span>
+          );
+          wordChars = [];
+        }
+        finalElements.push(element);
+      } else {
+        // Regular character - add to current word
+        wordChars.push(element);
+      }
+    }
+    
+    // Flush any remaining word
+    if (wordChars.length > 0) {
+      finalElements.push(
+        <span key={`w-${wordIdx++}`} className="inline-block">
+          {wordChars}
+        </span>
+      );
+    }
+    
+    return finalElements;
   };
 
   const handleInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
