@@ -37,7 +37,7 @@ export const createRoom = mutation({
     do {
       roomCode = generateRoomCode();
       const existing = await ctx.db
-        .query("gameRooms")
+        .query("rooms")
         .withIndex("by_roomCode", (q) => q.eq("roomCode", roomCode))
         .unique();
       
@@ -49,18 +49,16 @@ export const createRoom = mutation({
       }
     } while (existingRoom);
 
-    // Create the game room
-    const roomId = await ctx.db.insert("gameRooms", {
+    // Create the room
+    const roomId = await ctx.db.insert("rooms", {
       roomCode,
       hostId: user._id,
-      status: "waiting",
     });
 
-    // Add the host as a player
-    await ctx.db.insert("players", {
+    // Add the host as a room member
+    await ctx.db.insert("roomMembers", {
       userId: user._id,
-      gameRoomId: roomId,
-      wordsCompleted: 0,
+      roomId,
       isReady: false,
     });
 
@@ -90,7 +88,7 @@ export const joinRoom = mutation({
 
     // Find the room
     const room = await ctx.db
-      .query("gameRooms")
+      .query("rooms")
       .withIndex("by_roomCode", (q) => q.eq("roomCode", roomCode))
       .unique();
 
@@ -98,27 +96,33 @@ export const joinRoom = mutation({
       throw new ConvexError("Room not found");
     }
 
-    if (room.status !== "waiting") {
+    // Check if there's an active game in this room
+    const activeGame = await ctx.db
+      .query("games")
+      .withIndex("by_room", (q) => q.eq("roomId", room._id))
+      .filter((q) => q.neq(q.field("status"), "finished"))
+      .first();
+
+    if (activeGame && activeGame.status === "playing") {
       throw new ConvexError("Game has already started");
     }
 
     // Check if already in the room
-    const existingPlayer = await ctx.db
-      .query("players")
+    const existingMember = await ctx.db
+      .query("roomMembers")
       .withIndex("by_user_and_room", (q) => 
-        q.eq("userId", user._id).eq("gameRoomId", room._id)
+        q.eq("userId", user._id).eq("roomId", room._id)
       )
       .unique();
 
-    if (existingPlayer) {
+    if (existingMember) {
       return { roomId: room._id };
     }
 
-    // Add as a player
-    await ctx.db.insert("players", {
+    // Add as a room member
+    await ctx.db.insert("roomMembers", {
       userId: user._id,
-      gameRoomId: room._id,
-      wordsCompleted: 0,
+      roomId: room._id,
       isReady: false,
     });
 
@@ -132,7 +136,7 @@ export const getRoom = query({
   },
   handler: async (ctx, { roomCode }) => {
     const room = await ctx.db
-      .query("gameRooms")
+      .query("rooms")
       .withIndex("by_roomCode", (q) => q.eq("roomCode", roomCode))
       .unique();
 
@@ -153,35 +157,73 @@ export const getRoom = query({
       }
     }
 
-    // Get all players
-    const players = await ctx.db
-      .query("players")
-      .withIndex("by_gameRoom", (q) => q.eq("gameRoomId", room._id))
+    // Get the current game (if any)
+    const activeGame = room.hasActiveGame 
+      ? await ctx.db
+          .query("games")
+          .withIndex("by_room", (q) => q.eq("roomId", room._id))
+          .order("desc")
+          .first()
+      : null;
+
+    // Get room members
+    const roomMembers = await ctx.db
+      .query("roomMembers")
+      .withIndex("by_room", (q) => q.eq("roomId", room._id))
       .collect();
 
-    // Get user details for each player
-    const playersWithDetails = await Promise.all(
-      players.map(async (player) => {
-        const user = await ctx.db.get(player.userId);
+    const members = await Promise.all(
+      roomMembers.map(async (member) => {
+        const user = await ctx.db.get(member.userId);
         return {
-          ...player,
+          _id: member._id,
+          userId: member.userId,
           name: user?.name || "Unknown",
           avatarUrl: user?.avatarUrl,
+          isReady: member.isReady,
         };
       })
     );
 
-    // Get paragraph details if game has started
-    let paragraph = null;
-    if (room.selectedParagraphId) {
-      paragraph = await ctx.db.get(room.selectedParagraphId);
+    // If there's an active game, get the game data
+    let game = null;
+    if (activeGame) {
+      // Get paragraph details
+      const paragraph = await ctx.db.get(activeGame.selectedParagraphId);
+
+      // Get game players
+      const gamePlayers = await ctx.db
+        .query("players")
+        .withIndex("by_game", (q) => q.eq("gameId", activeGame._id))
+        .collect();
+
+      const players = await Promise.all(
+        gamePlayers.map(async (player) => {
+          const user = await ctx.db.get(player.userId);
+          return {
+            ...player,
+            name: user?.name || "Unknown",
+            avatarUrl: user?.avatarUrl,
+          };
+        })
+      );
+
+      game = {
+        ...activeGame,
+        players,
+        paragraph,
+      };
     }
 
     return {
-      ...room,
-      players: playersWithDetails,
-      paragraph,
-      currentUserId, // Include the current user's ID
+      _id: room._id,
+      roomCode: room.roomCode,
+      hostId: room.hostId,
+      members,
+      game,
+      hasActiveGame: room.hasActiveGame,
+      status: activeGame ? activeGame.status : "waiting" as "waiting" | "playing" | "finished",
+      currentUserId,
     };
   },
 });
@@ -208,7 +250,7 @@ export const toggleReady = mutation({
 
     // Find the room
     const room = await ctx.db
-      .query("gameRooms")
+      .query("rooms")
       .withIndex("by_roomCode", (q) => q.eq("roomCode", roomCode))
       .unique();
 
@@ -216,25 +258,32 @@ export const toggleReady = mutation({
       throw new ConvexError("Room not found");
     }
 
-    if (room.status !== "waiting") {
+    // Check if there's an active game
+    const activeGame = await ctx.db
+      .query("games")
+      .withIndex("by_room", (q) => q.eq("roomId", room._id))
+      .filter((q) => q.eq(q.field("status"), "playing"))
+      .first();
+
+    if (activeGame) {
       throw new ConvexError("Game has already started");
     }
 
-    // Find the player
-    const player = await ctx.db
-      .query("players")
+    // Find the room member
+    const roomMember = await ctx.db
+      .query("roomMembers")
       .withIndex("by_user_and_room", (q) => 
-        q.eq("userId", user._id).eq("gameRoomId", room._id)
+        q.eq("userId", user._id).eq("roomId", room._id)
       )
       .unique();
 
-    if (!player) {
+    if (!roomMember) {
       throw new ConvexError("Not in this room");
     }
 
     // Toggle ready status
-    await ctx.db.patch(player._id, {
-      isReady: !player.isReady,
+    await ctx.db.patch(roomMember._id, {
+      isReady: !roomMember.isReady,
     });
   },
 });
@@ -263,7 +312,7 @@ export const startGame = mutation({
 
     // Find the room
     const room = await ctx.db
-      .query("gameRooms")
+      .query("rooms")
       .withIndex("by_roomCode", (q) => q.eq("roomCode", roomCode))
       .unique();
 
@@ -276,17 +325,24 @@ export const startGame = mutation({
       throw new ConvexError("Only the host can start the game");
     }
 
-    if (room.status !== "waiting") {
+    // Check if there's already an active game
+    const activeGame = await ctx.db
+      .query("games")
+      .withIndex("by_room", (q) => q.eq("roomId", room._id))
+      .filter((q) => q.neq(q.field("status"), "finished"))
+      .first();
+
+    if (activeGame) {
       throw new ConvexError("Game has already started");
     }
 
-    // Check if all players are ready
-    const players = await ctx.db
-      .query("players")
-      .withIndex("by_gameRoom", (q) => q.eq("gameRoomId", room._id))
+    // Check if all players (except host) are ready
+    const roomMembers = await ctx.db
+      .query("roomMembers")
+      .withIndex("by_room", (q) => q.eq("roomId", room._id))
       .collect();
 
-    const allReady = players.every(p => p.isReady);
+    const allReady = roomMembers.every(m => m.userId === room.hostId || m.isReady);
     if (!allReady) {
       throw new ConvexError("Not all players are ready");
     }
@@ -303,12 +359,28 @@ export const startGame = mutation({
 
     const selectedParagraph = paragraphs[Math.floor(Math.random() * paragraphs.length)];
 
-    // Update room status
-    await ctx.db.patch(room._id, {
+    // Create a new game
+    const gameId = await ctx.db.insert("games", {
+      roomId: room._id,
       status: "playing",
       selectedParagraphId: selectedParagraph._id,
       startTime: Date.now(),
     });
+
+    // Mark room as having an active game
+    await ctx.db.patch(room._id, {
+      hasActiveGame: true,
+    });
+
+    // Create player entries for all room members
+    for (const member of roomMembers) {
+      await ctx.db.insert("players", {
+        userId: member.userId,
+        gameId,
+        wordsCompleted: 0,
+        typedText: "",
+      });
+    }
   },
 });
 
@@ -337,7 +409,7 @@ export const updateProgress = mutation({
 
     // Find the room
     const room = await ctx.db
-      .query("gameRooms")
+      .query("rooms")
       .withIndex("by_roomCode", (q) => q.eq("roomCode", roomCode))
       .unique();
 
@@ -345,24 +417,31 @@ export const updateProgress = mutation({
       throw new ConvexError("Room not found");
     }
 
-    if (room.status !== "playing") {
-      throw new ConvexError("Game is not active");
+    // Find the active game
+    const activeGame = await ctx.db
+      .query("games")
+      .withIndex("by_room", (q) => q.eq("roomId", room._id))
+      .filter((q) => q.eq(q.field("status"), "playing"))
+      .unique();
+
+    if (!activeGame) {
+      throw new ConvexError("No active game found");
     }
 
-    // Find the player
+    // Find the player in this game
     const player = await ctx.db
       .query("players")
-      .withIndex("by_user_and_room", (q) => 
-        q.eq("userId", user._id).eq("gameRoomId", room._id)
+      .withIndex("by_user_and_game", (q) => 
+        q.eq("userId", user._id).eq("gameId", activeGame._id)
       )
       .unique();
 
     if (!player) {
-      throw new ConvexError("Not in this room");
+      throw new ConvexError("Not in this game");
     }
 
     // Get the paragraph to check if finished
-    const paragraph = await ctx.db.get(room.selectedParagraphId!);
+    const paragraph = await ctx.db.get(activeGame.selectedParagraphId);
     if (!paragraph) {
       throw new ConvexError("Paragraph not found");
     }
@@ -380,7 +459,7 @@ export const updateProgress = mutation({
       // Check if all players have finished
       const allPlayers = await ctx.db
         .query("players")
-        .withIndex("by_gameRoom", (q) => q.eq("gameRoomId", room._id))
+        .withIndex("by_game", (q) => q.eq("gameId", activeGame._id))
         .collect();
 
       const allFinished = allPlayers.every(p => 
@@ -388,12 +467,81 @@ export const updateProgress = mutation({
       );
 
       if (allFinished) {
-        await ctx.db.patch(room._id, {
+        await ctx.db.patch(activeGame._id, {
           status: "finished",
         });
       }
     }
 
     await ctx.db.patch(player._id, updates);
+  },
+});
+
+export const playAgain = mutation({
+  args: {
+    roomCode: v.string(),
+  },
+  handler: async (ctx, { roomCode }) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new ConvexError("Not authenticated");
+    }
+
+    // Get the user
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
+      .unique();
+
+    if (!user) {
+      throw new ConvexError("User not found");
+    }
+
+    // Find the room
+    const room = await ctx.db
+      .query("rooms")
+      .withIndex("by_roomCode", (q) => q.eq("roomCode", roomCode))
+      .unique();
+
+    if (!room) {
+      throw new ConvexError("Room not found");
+    }
+
+    // Check if user is the host
+    if (room.hostId !== user._id) {
+      throw new ConvexError("Only the host can restart the game");
+    }
+
+    // Find the current finished game
+    const finishedGame = await ctx.db
+      .query("games")
+      .withIndex("by_room", (q) => q.eq("roomId", room._id))
+      .filter((q) => q.eq(q.field("status"), "finished"))
+      .order("desc")
+      .first();
+
+    if (!finishedGame) {
+      throw new ConvexError("No finished game found");
+    }
+
+    // Reset all room members' ready status
+    const roomMembers = await ctx.db
+      .query("roomMembers")
+      .withIndex("by_room", (q) => q.eq("roomId", room._id))
+      .collect();
+
+    for (const member of roomMembers) {
+      await ctx.db.patch(member._id, {
+        isReady: false,
+      });
+    }
+
+    // Clear the active game flag
+    await ctx.db.patch(room._id, {
+      hasActiveGame: undefined,
+    });
+
+    // The room is now ready for a new game to be started
+    // No need to create a new game here - that happens when host clicks "Start Game"
   },
 });

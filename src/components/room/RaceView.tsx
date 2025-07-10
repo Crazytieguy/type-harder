@@ -1,46 +1,39 @@
 import { useUser } from "@clerk/clerk-react";
-import { convexQuery } from "@convex-dev/react-query";
-import { useSuspenseQuery } from "@tanstack/react-query";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useMutation, useQuery } from "convex/react";
+import { useMutation } from "convex/react";
 import type { JSX } from "react";
 import { useEffect, useRef, useState } from "react";
-import { api } from "../../convex/_generated/api";
+import { api } from "../../../convex/_generated/api";
+import type { RoomWithGame } from "../../types/room";
 
-export const Route = createFileRoute("/race/$roomCode")({
-  loader: async ({ context: { queryClient }, params: { roomCode } }) => {
-    const queryOptions = convexQuery(api.games.getRoom, { roomCode });
-    return await queryClient.ensureQueryData(queryOptions);
-  },
-  component: RacePage,
-});
+interface RaceViewProps {
+  room: RoomWithGame;
+}
 
-function RacePage() {
-  const { roomCode } = Route.useParams();
-  const navigate = useNavigate();
+export default function RaceView({ room: { roomCode, game, ...room } }: RaceViewProps) {
   const { user } = useUser();
-  
-  const roomQueryOptions = convexQuery(api.games.getRoom, { roomCode });
-  const { data: room } = useSuspenseQuery(roomQueryOptions);
-  
-  // Polling for real-time updates
-  const roomLive = useQuery(api.games.getRoom, { roomCode });
-  
   const updateProgress = useMutation(api.games.updateProgress).withOptimisticUpdate(
     (localStore, args) => {
-      const currentRoom = localStore.getQuery(api.games.getRoom, { roomCode });
-      if (currentRoom && user) {
-        const updatedPlayers = currentRoom.players.map(player => {
-          if (player.name === user.fullName) {
-            return { ...player, wordsCompleted: args.wordsCompleted, typedText: args.typedText };
-          }
-          return player;
-        });
-        localStore.setQuery(
-          api.games.getRoom, 
-          { roomCode }, 
-          { ...currentRoom, players: updatedPlayers }
-        );
+      if (room && user) {
+        const currentRoom = localStore.getQuery(api.games.getRoom, { roomCode });
+        if (currentRoom && currentRoom.game) {
+          const updatedPlayers = currentRoom.game.players.map((player: any) => {
+            if (player.name === user.fullName) {
+              return { ...player, wordsCompleted: args.wordsCompleted, typedText: args.typedText };
+            }
+            return player;
+          });
+          localStore.setQuery(
+            api.games.getRoom, 
+            { roomCode }, 
+            { 
+              ...currentRoom, 
+              game: {
+                ...currentRoom.game,
+                players: updatedPlayers
+              }
+            }
+          );
+        }
       }
     }
   );
@@ -51,62 +44,27 @@ function RacePage() {
   const [errorPosition, setErrorPosition] = useState<number | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Navigate to results if game is finished
-  useEffect(() => {
-    if (roomLive?.status === "finished") {
-      void navigate({ to: "/results/$roomCode", params: { roomCode } });
-    }
-  }, [roomLive?.status, navigate, roomCode]);
-
-  // Keep input focused
-  useEffect(() => {
-    if (inputRef.current && room?.status === "playing") {
-      inputRef.current.focus();
-    }
-  }, [room?.status]);
-
-  // Extract plain text from markdown for typing (removes formatting and links)
-  const extractTypingContent = (markdown: string) => {
-    return markdown
-      // Remove links: [text](url) -> text
-      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-      // Remove bold: **text** -> text
-      .replace(/\*\*([^*]+)\*\*/g, '$1')
-      // Remove italic: *text* -> text (but not ** patterns)
-      .replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, '$1')
-      // Normalize multiple spaces to single space
-      .replace(/\s+/g, ' ')
-      .trim();
-  };
-
-  const normalizeQuotes = (text: string) => {
-    // Only normalize the most common smart quotes
-    return text
-      .replace(/[\u201C\u201D]/g, '"')  // Smart double quotes
-      .replace(/[\u2018\u2019]/g, "'"); // Smart single quotes
-  };
-  
-  const normalizeChar = (char: string) => {
-    // Simple character normalization for comparison
-    if (char === '\u201C' || char === '\u201D') return '"';
-    if (char === '\u2018' || char === '\u2019') return "'";
-    return char;
-  };
-  
-  const currentPlayer = roomLive?.players.find(p => {
+  const currentPlayer = game?.players?.find((p: any) => {
     return user && p.name === user.fullName;
   });
   
   // Restore typed text from database on mount
   useEffect(() => {
-    if (!hasRestoredProgress && currentPlayer?.typedText && room?.status === "playing") {
+    if (!hasRestoredProgress && currentPlayer?.typedText && game?.status === "playing") {
       setTypedText(currentPlayer.typedText);
       setWordsCompleted(currentPlayer.wordsCompleted);
       setHasRestoredProgress(true);
     }
-  }, [currentPlayer?.typedText, currentPlayer?.wordsCompleted, hasRestoredProgress, room?.status]);
+  }, [currentPlayer?.typedText, currentPlayer?.wordsCompleted, hasRestoredProgress, game?.status]);
 
-  if (!room || room.status !== "playing" || !room.paragraph) {
+  // Keep input focused
+  useEffect(() => {
+    if (inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, []);
+
+  if (!game || game.status !== "playing" || !game.paragraph) {
     return (
       <div className="text-center">
         <h1>Race Not Active</h1>
@@ -116,17 +74,16 @@ function RacePage() {
   }
 
   // Extract typing content (without markdown) for validation
-  const typingContent = normalizeQuotes(extractTypingContent(room.paragraph.content));
-  const typingWords = typingContent.split(/\s+/).filter(word => word.length > 0);
+  const typingContent = normalizeQuotes(extractTypingContent(game.paragraph.content));
+  const typingWords = typingContent.split(/\s+/).filter((word: string) => word.length > 0);
 
-  const elapsedSeconds = roomLive?.startTime 
-    ? (Date.now() - roomLive.startTime) / 1000 
+  const elapsedSeconds = game?.startTime 
+    ? (Date.now() - game.startTime) / 1000 
     : 0;
   
   const wpm = elapsedSeconds > 0 
     ? Math.round((wordsCompleted / elapsedSeconds) * 60) 
     : 0;
-
 
   // Character status helper
   const getCharacterStatus = (
@@ -189,7 +146,7 @@ function RacePage() {
 
   // Render the paragraph with markdown formatting and character status
   const renderFormattedParagraph = () => {
-    const displayText = room.paragraph?.content || "";
+    const displayText = game.paragraph?.content || "";
     const elements: JSX.Element[] = [];
     
     let displayPos = 0;
@@ -366,7 +323,6 @@ function RacePage() {
       // If we've completed all words and typed the full content, we're done
       if (newWordsCompleted === typingWords.length && newTypedText.length === typingContent.length) {
         // Navigation will happen via the useEffect when the backend updates
-        console.log("Race completed! Waiting for backend to update...");
       }
     }
   };
@@ -409,11 +365,11 @@ function RacePage() {
               <div className="flex flex-col gap-1">
                 <div className="flex gap-2">
                   <span className="font-semibold">Source:</span>
-                  <span>{room.paragraph.bookTitle} → {room.paragraph.sequenceTitle} → {room.paragraph.articleTitle}</span>
+                  <span>{game.paragraph.bookTitle} → {game.paragraph.sequenceTitle} → {game.paragraph.articleTitle}</span>
                 </div>
                 <div className="flex gap-2">
                   <span className="font-semibold">Article:</span>
-                  <a href={room.paragraph.articleUrl} target="_blank" rel="noopener noreferrer" className="link link-primary">
+                  <a href={game.paragraph.articleUrl} target="_blank" rel="noopener noreferrer" className="link link-primary">
                     View original article
                   </a>
                 </div>
@@ -449,7 +405,7 @@ function RacePage() {
           <div className="card-body">
             <h2 className="card-title mb-4">Race Progress</h2>
             <div className="space-y-3">
-              {roomLive?.players.map((player) => {
+              {game?.players?.map((player: any) => {
                 const playerProgress = (player.wordsCompleted / typingWords.length) * 100;
                 const playerWpm = elapsedSeconds > 0 
                   ? Math.round((player.wordsCompleted / elapsedSeconds) * 60) 
@@ -484,3 +440,31 @@ function RacePage() {
     </div>
   );
 }
+
+// Extract plain text from markdown for typing (removes formatting and links)
+const extractTypingContent = (markdown: string) => {
+  return markdown
+    // Remove links: [text](url) -> text
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    // Remove bold: **text** -> text
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    // Remove italic: *text* -> text (but not ** patterns)
+    .replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, '$1')
+    // Normalize multiple spaces to single space
+    .replace(/\s+/g, ' ')
+    .trim();
+};
+
+const normalizeQuotes = (text: string) => {
+  // Only normalize the most common smart quotes
+  return text
+    .replace(/[\u201C\u201D]/g, '"')  // Smart double quotes
+    .replace(/[\u2018\u2019]/g, "'"); // Smart single quotes
+};
+
+const normalizeChar = (char: string) => {
+  // Simple character normalization for comparison
+  if (char === '\u201C' || char === '\u201D') return '"';
+  if (char === '\u2018' || char === '\u2019') return "'";
+  return char;
+};

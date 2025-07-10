@@ -1,24 +1,17 @@
-import { convexQuery } from "@convex-dev/react-query";
-import { useSuspenseQuery } from "@tanstack/react-query";
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { Clock, Trophy, Zap } from "lucide-react";
-import { api } from "../../convex/_generated/api";
+import { Link } from "@tanstack/react-router";
+import { useMutation } from "convex/react";
+import { Clock, RotateCcw, Trophy, Zap } from "lucide-react";
+import { api } from "../../../convex/_generated/api";
+import type { RoomWithGame } from "../../types/room";
 
-export const Route = createFileRoute("/results/$roomCode")({
-  loader: async ({ context: { queryClient }, params: { roomCode } }) => {
-    const queryOptions = convexQuery(api.games.getRoom, { roomCode });
-    return await queryClient.ensureQueryData(queryOptions);
-  },
-  component: ResultsPage,
-});
+interface ResultsViewProps {
+  room: RoomWithGame;
+}
 
-function ResultsPage() {
-  const { roomCode } = Route.useParams();
-  
-  const roomQueryOptions = convexQuery(api.games.getRoom, { roomCode });
-  const { data: room } = useSuspenseQuery(roomQueryOptions);
+export default function ResultsView({ room: { roomCode, game, ...room } }: ResultsViewProps) {
+  const playAgain = useMutation(api.games.playAgain);
 
-  if (!room || room.status !== "finished" || !room.paragraph || !room.startTime) {
+  if (!game || game.status !== "finished" || !game.paragraph || !game.startTime) {
     return (
       <div className="text-center">
         <h1>Results Not Available</h1>
@@ -29,11 +22,11 @@ function ResultsPage() {
   }
 
   // Calculate results for each player
-  const results = room.players
-    .filter(p => p.finishedAt)
-    .map(player => {
-      const raceDuration = (player.finishedAt! - room.startTime!) / 1000;
-      const wpm = Math.round((room.paragraph!.wordCount / raceDuration) * 60);
+  const results = game.players
+    .filter((p: any) => p.finishedAt)
+    .map((player: any) => {
+      const raceDuration = (player.finishedAt! - game.startTime) / 1000;
+      const wpm = Math.round((game.paragraph!.wordCount / raceDuration) * 60);
       
       return {
         ...player,
@@ -41,9 +34,19 @@ function ResultsPage() {
         wpm,
       };
     })
-    .sort((a, b) => a.raceDuration - b.raceDuration);
+    .sort((a: any, b: any) => a.raceDuration - b.raceDuration);
 
-  const unfinishedPlayers = room.players.filter(p => !p.finishedAt);
+  const unfinishedPlayers = game.players.filter((p: any) => !p.finishedAt);
+  
+  const isHost = room.currentUserId === room.hostId;
+  
+  const handlePlayAgain = async () => {
+    try {
+      await playAgain({ roomCode });
+    } catch (err) {
+      console.error("Failed to restart game:", err);
+    }
+  };
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -132,7 +135,7 @@ function ResultsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {results.map((player, index) => (
+                  {results.map((player: any, index: number) => (
                     <tr key={player._id}>
                       <td>
                         <span className="font-bold">#{index + 1}</span>
@@ -156,7 +159,7 @@ function ResultsPage() {
                     </tr>
                   ))}
                   
-                  {unfinishedPlayers.map((player) => (
+                  {unfinishedPlayers.map((player: any) => (
                     <tr key={player._id} className="opacity-50">
                       <td>-</td>
                       <td>{player.name}</td>
@@ -178,13 +181,13 @@ function ResultsPage() {
           <div className="card-body">
             <h3 className="font-semibold mb-2">Race Text</h3>
             <p className="text-sm opacity-70 mb-3">
-              From: {room.paragraph.bookTitle} → {room.paragraph.sequenceTitle} → {room.paragraph.articleTitle}
+              From: {game.paragraph.bookTitle} → {game.paragraph.sequenceTitle} → {game.paragraph.articleTitle}
             </p>
-            <p className="text-sm font-mono leading-relaxed">{room.paragraph.content}</p>
+            <p className="text-sm font-mono leading-relaxed">{game.paragraph.content}</p>
             <div className="text-sm opacity-70 mt-3">
-              <div>Word count: {room.paragraph.wordCount}</div>
+              <div>Word count: {game.paragraph.wordCount}</div>
               <div className="mt-1">
-                <a href={room.paragraph.articleUrl} target="_blank" rel="noopener noreferrer" className="link link-primary">
+                <a href={game.paragraph.articleUrl} target="_blank" rel="noopener noreferrer" className="link link-primary">
                   View original article
                 </a>
               </div>
@@ -194,7 +197,16 @@ function ResultsPage() {
 
         {/* Action Buttons */}
         <div className="flex justify-center gap-4">
-          <Link to="/" className="btn btn-primary">
+          {isHost && (
+            <button 
+              onClick={() => void handlePlayAgain()} 
+              className="btn btn-primary"
+            >
+              <RotateCcw className="w-4 h-4 mr-2" />
+              Play Again
+            </button>
+          )}
+          <Link to="/" className="btn btn-outline">
             New Game
           </Link>
         </div>

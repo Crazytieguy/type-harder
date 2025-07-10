@@ -22,24 +22,37 @@ export default defineSchema({
     .index("by_book", ["bookTitle"])
     .index("by_random", ["wordCount"]), // For random selection with word count filtering
 
-  gameRooms: defineTable({
+  rooms: defineTable({
     roomCode: v.string(),
     hostId: v.id("users"),
-    status: v.union(v.literal("waiting"), v.literal("playing"), v.literal("finished")),
-    selectedParagraphId: v.optional(v.id("sequences")),
-    startTime: v.optional(v.number()),
+    hasActiveGame: v.optional(v.literal(true)),
   }).index("by_roomCode", ["roomCode"]),
+
+  games: defineTable({
+    roomId: v.id("rooms"),
+    status: v.union(v.literal("playing"), v.literal("finished")),
+    selectedParagraphId: v.id("sequences"),
+    startTime: v.number(),
+  })
+    .index("by_room", ["roomId"]),
+
+  roomMembers: defineTable({
+    userId: v.id("users"),
+    roomId: v.id("rooms"),
+    isReady: v.boolean(),
+  })
+    .index("by_room", ["roomId"])
+    .index("by_user_and_room", ["userId", "roomId"]),
 
   players: defineTable({
     userId: v.id("users"),
-    gameRoomId: v.id("gameRooms"),
+    gameId: v.id("games"),
     wordsCompleted: v.number(),
-    typedText: v.optional(v.string()),
+    typedText: v.string(),
     finishedAt: v.optional(v.number()),
-    isReady: v.boolean(),
   })
-    .index("by_gameRoom", ["gameRoomId"])
-    .index("by_user_and_room", ["userId", "gameRoomId"]),
+    .index("by_game", ["gameId"])
+    .index("by_user_and_game", ["userId", "gameId"]),
 
   scrapingProgress: defineTable({
     url: v.string(),
