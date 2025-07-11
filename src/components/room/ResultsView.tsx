@@ -3,6 +3,7 @@ import { useMutation } from "convex/react";
 import { Clock, RotateCcw, Trophy, Zap } from "lucide-react";
 import { api } from "../../../convex/_generated/api";
 import type { RoomWithGame } from "../../types/room";
+import { renderMarkdown } from "../../utils/markdown";
 
 interface ResultsViewProps {
   room: RoomWithGame;
@@ -26,7 +27,7 @@ export default function ResultsView({ room: { roomCode, game, ...room } }: Resul
     .filter((p: any) => p.finishedAt)
     .map((player: any) => {
       const raceDuration = (player.finishedAt! - game.startTime) / 1000;
-      const wpm = Math.round((game.paragraph!.wordCount / raceDuration) * 60);
+      const wpm = Math.round((game.paragraph.wordCount / raceDuration) * 60);
       
       return {
         ...player,
@@ -183,7 +184,7 @@ export default function ResultsView({ room: { roomCode, game, ...room } }: Resul
             <p className="text-sm opacity-70 mb-3">
               From: {game.paragraph.bookTitle} → {game.paragraph.sequenceTitle} → {game.paragraph.articleTitle}
             </p>
-            <p className="text-sm font-mono leading-relaxed">{game.paragraph.content}</p>
+            <div className="text-sm font-mono leading-relaxed">{renderMarkdown(game.paragraph.content)}</div>
             <div className="text-sm opacity-70 mt-3">
               <div>Word count: {game.paragraph.wordCount}</div>
               <div className="mt-1">
