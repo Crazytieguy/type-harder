@@ -123,182 +123,210 @@ export default function RaceView({ room: { roomCode, game, ...room } }: RaceView
     );
   };
 
-  // Render the paragraph with markdown formatting and character status
-  const renderFormattedParagraph = () => {
-    const displayText = game.paragraph?.content || "";
-    const elements: JSX.Element[] = [];
-    
+  // Token types for parsing
+  type Token = 
+    | { type: 'text'; content: string; displayStart: number; displayEnd: number; typingStart: number; typingEnd: number }
+    | { type: 'bold'; tokens: Token[]; displayStart: number; displayEnd: number }
+    | { type: 'italic'; tokens: Token[]; displayStart: number; displayEnd: number }
+    | { type: 'link'; tokens: Token[]; url: string; displayStart: number; displayEnd: number };
+
+  // Tokenize the markdown text into words and formatting
+  const tokenizeMarkdown = (text: string): Token[] => {
+    const tokens: Token[] = [];
     let displayPos = 0;
     let typingPos = 0;
-    let key = 0;
     
-    // Parse and render the markdown while tracking positions
-    while (displayPos < displayText.length) {
-      // Check for bold at current position
-      if (displayText.substring(displayPos).startsWith('**')) {
-        const endIndex = displayText.indexOf('**', displayPos + 2);
+    while (displayPos < text.length) {
+      // Check for bold
+      if (text.substring(displayPos).startsWith('**')) {
+        const endIndex = text.indexOf('**', displayPos + 2);
         if (endIndex !== -1) {
-          // Skip the opening **
-          displayPos += 2;
-          const boldContent: JSX.Element[] = [];
-          
-          // Process characters inside bold
-          while (displayPos < endIndex) {
-            const char = displayText[displayPos];
-            const status = getCharacterStatus(typingPos, currentIdx);
-            boldContent.push(renderCharacter(char, status, key++, typingPos));
-            displayPos++;
-            typingPos++;
-          }
-          
-          elements.push(<strong key={`bold-${key++}`}>{boldContent}</strong>);
-          displayPos += 2; // Skip closing **
+          const innerText = text.substring(displayPos + 2, endIndex);
+          const innerTokens = tokenizeText(innerText, displayPos + 2, typingPos);
+          tokens.push({
+            type: 'bold',
+            tokens: innerTokens,
+            displayStart: displayPos,
+            displayEnd: endIndex + 2
+          });
+          displayPos = endIndex + 2;
+          typingPos += innerText.length;
           continue;
         }
       }
       
-      // Check for italic at current position
-      if (displayText.substring(displayPos).startsWith('*') && 
-          !displayText.substring(displayPos).startsWith('**')) {
-        const endIndex = displayText.indexOf('*', displayPos + 1);
+      // Check for italic
+      if (text.substring(displayPos).startsWith('*') && !text.substring(displayPos).startsWith('**')) {
+        const endIndex = text.indexOf('*', displayPos + 1);
         if (endIndex !== -1) {
-          // Skip the opening *
-          displayPos += 1;
-          const italicContent: JSX.Element[] = [];
-          
-          // Process characters inside italic
-          while (displayPos < endIndex) {
-            const char = displayText[displayPos];
-            const status = getCharacterStatus(typingPos, currentIdx);
-            italicContent.push(renderCharacter(char, status, key++, typingPos));
-            displayPos++;
-            typingPos++;
-          }
-          
-          elements.push(<em key={`italic-${key++}`}>{italicContent}</em>);
-          displayPos += 1; // Skip closing *
+          const innerText = text.substring(displayPos + 1, endIndex);
+          const innerTokens = tokenizeText(innerText, displayPos + 1, typingPos);
+          tokens.push({
+            type: 'italic',
+            tokens: innerTokens,
+            displayStart: displayPos,
+            displayEnd: endIndex + 1
+          });
+          displayPos = endIndex + 1;
+          typingPos += innerText.length;
           continue;
         }
       }
       
-      // Check for link at current position
-      if (displayText.substring(displayPos).startsWith('[')) {
-        const linkEndIndex = displayText.indexOf('](', displayPos);
+      // Check for link
+      if (text.substring(displayPos).startsWith('[')) {
+        const linkEndIndex = text.indexOf('](', displayPos);
         if (linkEndIndex !== -1) {
-          const urlEndIndex = displayText.indexOf(')', linkEndIndex);
+          const urlEndIndex = text.indexOf(')', linkEndIndex);
           if (urlEndIndex !== -1) {
-            // Process link text
-            displayPos += 1; // Skip [
-            const linkContent: JSX.Element[] = [];
-            
-            while (displayPos < linkEndIndex) {
-              const char = displayText[displayPos];
-              const status = getCharacterStatus(typingPos, currentIdx);
-              linkContent.push(renderCharacter(char, status, key++, typingPos));
-              displayPos++;
-              typingPos++;
-            }
-            
-            elements.push(<span key={`link-${key++}`}>{linkContent}</span>);
-            
-            // Skip the ](url) part
+            const linkText = text.substring(displayPos + 1, linkEndIndex);
+            const url = text.substring(linkEndIndex + 2, urlEndIndex);
+            const innerTokens = tokenizeText(linkText, displayPos + 1, typingPos);
+            tokens.push({
+              type: 'link',
+              tokens: innerTokens,
+              url,
+              displayStart: displayPos,
+              displayEnd: urlEndIndex + 1
+            });
             displayPos = urlEndIndex + 1;
+            typingPos += linkText.length;
             continue;
           }
         }
       }
       
-      // Regular character
-      const char = displayText[displayPos];
-      const status = getCharacterStatus(typingPos, currentIdx);
-      elements.push(renderCharacter(char, status, key++, typingPos));
-      displayPos++;
-      typingPos++;
+      // Regular text - find the next word boundary or formatting marker
+      let endPos = displayPos;
+      while (endPos < text.length && 
+             !text.substring(endPos).startsWith('**') &&
+             !text.substring(endPos).startsWith('*') &&
+             !text.substring(endPos).startsWith('[')) {
+        endPos++;
+      }
+      
+      if (endPos > displayPos) {
+        const content = text.substring(displayPos, endPos);
+        const textTokens = tokenizeText(content, displayPos, typingPos);
+        tokens.push(...textTokens);
+        typingPos += content.length;
+        displayPos = endPos;
+      }
     }
+    
+    return tokens;
+  };
+
+  // Tokenize plain text into words
+  const tokenizeText = (text: string, displayOffset: number, typingOffset: number): Token[] => {
+    const tokens: Token[] = [];
+    let pos = 0;
+    
+    while (pos < text.length) {
+      // Find word boundary (including trailing spaces)
+      let wordEnd = pos;
+      while (wordEnd < text.length && text[wordEnd] !== ' ') {
+        wordEnd++;
+      }
+      // Include trailing spaces with the word
+      while (wordEnd < text.length && text[wordEnd] === ' ') {
+        wordEnd++;
+      }
+      
+      if (wordEnd > pos) {
+        tokens.push({
+          type: 'text',
+          content: text.substring(pos, wordEnd),
+          displayStart: displayOffset + pos,
+          displayEnd: displayOffset + wordEnd,
+          typingStart: typingOffset + pos,
+          typingEnd: typingOffset + wordEnd
+        });
+        pos = wordEnd;
+      }
+    }
+    
+    return tokens;
+  };
+
+  // Render a token with character-level styling
+  const renderToken = (token: Token, keyPrefix: string): JSX.Element => {
+    switch (token.type) {
+      case 'text': {
+        // Split into actual words and spaces
+        const words: JSX.Element[] = [];
+        let currentWord: JSX.Element[] = [];
+        let wordKey = 0;
+        
+        for (let i = 0; i < token.content.length; i++) {
+          const char = token.content[i];
+          const typingPos = token.typingStart + i;
+          const status = getCharacterStatus(typingPos, currentIdx);
+          const charElement = renderCharacter(char, status, i, typingPos);
+          
+          if (char === ' ') {
+            // If we have a word, wrap it
+            if (currentWord.length > 0) {
+              words.push(
+                <span key={`word-${wordKey++}`} className="inline-block">
+                  {currentWord}
+                </span>
+              );
+              currentWord = [];
+            }
+            // Add the space separately
+            words.push(charElement);
+          } else {
+            currentWord.push(charElement);
+          }
+        }
+        
+        // Add any remaining word
+        if (currentWord.length > 0) {
+          words.push(
+            <span key={`word-${wordKey++}`} className="inline-block">
+              {currentWord}
+            </span>
+          );
+        }
+        
+        return <span key={keyPrefix}>{words}</span>;
+      }
+      
+      case 'bold': {
+        const innerElements = token.tokens.map((t, i) => renderToken(t, `${keyPrefix}-b-${i}`));
+        return <strong key={keyPrefix}>{innerElements}</strong>;
+      }
+      
+      case 'italic': {
+        const innerElements = token.tokens.map((t, i) => renderToken(t, `${keyPrefix}-i-${i}`));
+        return <em key={keyPrefix}>{innerElements}</em>;
+      }
+      
+      case 'link': {
+        const innerElements = token.tokens.map((t, i) => renderToken(t, `${keyPrefix}-l-${i}`));
+        return <span key={keyPrefix}>{innerElements}</span>;
+      }
+    }
+  };
+
+  // Render the paragraph with proper word boundaries and character status
+  const renderFormattedParagraph = () => {
+    const displayText = game.paragraph?.content || "";
+    const tokens = tokenizeMarkdown(displayText);
+    const elements = tokens.map((token, i) => renderToken(token, `t-${i}`));
     
     // Add cursor at the end if we've typed everything
     if (currentIdx === typingContent.length) {
       elements.push(
-        <span key={`cursor-${key++}`} className="relative inline-block">
+        <span key="cursor" className="relative inline-block">
           <span className="absolute -left-[1px] top-0 bottom-0 w-[2px] bg-primary animate-pulse"></span>
           <span>&nbsp;</span>
         </span>
       );
     }
     
-    // Post-process to group characters into words
-    const finalElements: JSX.Element[] = [];
-    let wordChars: JSX.Element[] = [];
-    let wordIdx = 0;
-    
-    for (const element of elements) {
-      // Check if this is a formatting element (strong, em, etc)
-      if (element.type === 'strong' || element.type === 'em') {
-        // Process the children of the formatting element
-        const formattedContent = Array.isArray(element.props.children) 
-          ? element.props.children 
-          : [element.props.children];
-        
-        const processedChildren: JSX.Element[] = [];
-        let formattedWordChars: JSX.Element[] = [];
-        
-        for (const child of formattedContent) {
-          if (child.props?.children === ' ' || child.props?.children === '\u00A0') {
-            if (formattedWordChars.length > 0) {
-              processedChildren.push(
-                <span key={`fw-${wordIdx++}`} className="inline-block">
-                  {formattedWordChars}
-                </span>
-              );
-              formattedWordChars = [];
-            }
-            processedChildren.push(child);
-          } else {
-            formattedWordChars.push(child);
-          }
-        }
-        
-        if (formattedWordChars.length > 0) {
-          processedChildren.push(
-            <span key={`fw-${wordIdx++}`} className="inline-block">
-              {formattedWordChars}
-            </span>
-          );
-        }
-        
-        // Recreate the formatting element with processed children
-        if (element.type === 'strong') {
-          finalElements.push(<strong key={element.key}>{processedChildren}</strong>);
-        } else if (element.type === 'em') {
-          finalElements.push(<em key={element.key}>{processedChildren}</em>);
-        }
-      } else if (element.props?.children === ' ' || element.props?.children === '\u00A0') {
-        // This is a space character
-        if (wordChars.length > 0) {
-          finalElements.push(
-            <span key={`w-${wordIdx++}`} className="inline-block">
-              {wordChars}
-            </span>
-          );
-          wordChars = [];
-        }
-        finalElements.push(element);
-      } else {
-        // Regular character - add to current word
-        wordChars.push(element);
-      }
-    }
-    
-    // Flush any remaining word
-    if (wordChars.length > 0) {
-      finalElements.push(
-        <span key={`w-${wordIdx++}`} className="inline-block">
-          {wordChars}
-        </span>
-      );
-    }
-    
-    return finalElements;
+    return elements;
   };
 
   const handleInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
