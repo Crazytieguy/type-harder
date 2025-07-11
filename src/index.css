@@ -1,9 +1,75 @@
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
-@plugin "daisyui" {
-  themes:
-    light --default,
-    dark --prefersdark;
+@plugin "daisyui";
+
+@plugin "daisyui/theme" {
+  name: "zenith";
+  default: true;
+  prefersdark: false;
+  color-scheme: "light";
+  --color-base-100: oklch(98% 0.02 209);
+  --color-base-200: oklch(95% 0.02 209);
+  --color-base-300: oklch(92% 0.02 209);
+  --color-base-content: oklch(20% 0.08 209);
+  --color-primary: oklch(55% 0.2653 120);
+  --color-primary-content: oklch(98% 0.02 120);
+  --color-secondary: oklch(65% 0.0764 298.3);
+  --color-secondary-content: oklch(98% 0.02 298.3);
+  --color-accent: oklch(85% 0 0);
+  --color-accent-content: oklch(20% 0 0);
+  --color-neutral: oklch(80% 0.02 209);
+  --color-neutral-content: oklch(20% 0.08 209);
+  --color-info: oklch(65% 0.16 232.661);
+  --color-info-content: oklch(98% 0.02 232.661);
+  --color-success: oklch(65% 0.209 151.711);
+  --color-success-content: oklch(98% 0.02 151.711);
+  --color-warning: oklch(75% 0.1962 84.62);
+  --color-warning-content: oklch(20% 0.08 84.62);
+  --color-error: oklch(60% 0.1985 24.22);
+  --color-error-content: oklch(98% 0.02 24.22);
+  --radius-selector: 0.5rem;
+  --radius-field: 0.25rem;
+  --radius-box: 0.25rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 1;
+  --noise: 0;
+}
+
+@plugin "daisyui/theme" {
+  name: "abyss";
+  default: false;
+  prefersdark: true;
+  color-scheme: "dark";
+  --color-base-100: oklch(20% 0.08 209);
+  --color-base-200: oklch(15% 0.08 209);
+  --color-base-300: oklch(10% 0.08 209);
+  --color-base-content: oklch(90% 0.076 70.697);
+  --color-primary: oklch(92% 0.2653 120);
+  --color-primary-content: oklch(50% 0.2653 120);
+  --color-secondary: oklch(83.27% 0.0764 298.3);
+  --color-secondary-content: oklch(43.27% 0.0764 298.3);
+  --color-accent: oklch(43% 0 0);
+  --color-accent-content: oklch(98% 0 0);
+  --color-neutral: oklch(30% 0.08 209);
+  --color-neutral-content: oklch(90% 0.076 70.697);
+  --color-info: oklch(74% 0.16 232.661);
+  --color-info-content: oklch(29% 0.066 243.157);
+  --color-success: oklch(79% 0.209 151.711);
+  --color-success-content: oklch(26% 0.065 152.934);
+  --color-warning: oklch(84.8% 0.1962 84.62);
+  --color-warning-content: oklch(44.8% 0.1962 84.62);
+  --color-error: oklch(65% 0.1985 24.22);
+  --color-error-content: oklch(27% 0.1985 24.22);
+  --radius-selector: 0.5rem;
+  --radius-field: 0.25rem;
+  --radius-box: 0.25rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 1;
+  --noise: 0;
 }
 
 /* Custom font family is preserved */
