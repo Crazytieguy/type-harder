@@ -52,8 +52,8 @@ export default function RoomLobby({ room: {roomCode, ...room} }: RoomLobbyProps)
   });
 
   const isHost = room.currentUserId === room.hostId;
-  const currentMember = room.members.find((m: any) => m.userId === room.currentUserId);
-  const allReady = room.members.every((m: any) => m.userId === room.hostId || m.isReady);
+  const currentMember = room.members.find((m) => m.userId === room.currentUserId);
+  const allReady = room.members.every((m) => m.userId === room.hostId || m.isReady);
 
   const handleCopyCode = () => {
     void navigator.clipboard.writeText(roomCode);
@@ -101,7 +101,7 @@ export default function RoomLobby({ room: {roomCode, ...room} }: RoomLobbyProps)
             </h2>
             
             <div className="space-y-2 mt-4">
-              {room.members.map((member: any) => (
+              {room.members.map((member) => (
                 <div 
                   key={member._id} 
                   className="flex items-center justify-between p-3 bg-base-100 rounded-lg"
@@ -113,9 +113,7 @@ export default function RoomLobby({ room: {roomCode, ...room} }: RoomLobbyProps)
                     )}
                   </div>
                   <div className="flex items-center gap-2">
-                    {member.userId === room.hostId ? (
-                      <span className="text-sm text-warning">Host</span>
-                    ) : member.isReady ? (
+                    {member.userId !== room.hostId && (member.isReady ? (
                       <>
                         <CheckCircle className="w-5 h-5 text-success" />
                         <span className="text-sm text-success">Ready</span>
@@ -125,7 +123,7 @@ export default function RoomLobby({ room: {roomCode, ...room} }: RoomLobbyProps)
                         <Circle className="w-5 h-5 text-base-content/50" />
                         <span className="text-sm opacity-50">Not Ready</span>
                       </>
-                    )}
+                    ))}
                   </div>
                 </div>
               ))}

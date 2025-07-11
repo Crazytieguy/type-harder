@@ -78,16 +78,7 @@ function RootComponent() {
                     </div>
                     <div className="navbar-center hidden lg:flex">
                       <nav className="flex">
-                        <Link
-                          to="/"
-                          className="btn btn-ghost"
-                          activeProps={{
-                            className: "btn btn-ghost btn-active",
-                          }}
-                          onClick={() => setIsSidebarOpen(false)}
-                        >
-                          Home
-                        </Link>
+                        {/* Links could go here */}
                       </nav>
                     </div>
                     <div className="navbar-end">
@@ -114,17 +105,9 @@ function RootComponent() {
                       <div className="menu-title mb-4">Menu</div>
                       <ul className="space-y-2">
                         <li>
-                          <Link
-                            to="/"
-                            onClick={() => setIsSidebarOpen(false)}
-                            activeProps={{
-                              className: "active",
-                            }}
-                            className="flex items-center p-2"
-                          >
-                            Home
-                          </Link>
+                        <span className="p2">Why are you here?</span>
                         </li>
+                        {/* Links could go here */}
                       </ul>
                     </div>
                     <div className="mt-auto py-4 border-t border-base-300 flex justify-center items-center">

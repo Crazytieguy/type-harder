@@ -24,8 +24,8 @@ export default function ResultsView({ room: { roomCode, game, ...room } }: Resul
 
   // Calculate results for each player
   const results = game.players
-    .filter((p: any) => p.finishedAt)
-    .map((player: any) => {
+    .filter((p) => p.finishedAt)
+    .map((player) => {
       const raceDuration = (player.finishedAt! - game.startTime) / 1000;
       const wpm = Math.round((game.paragraph.wordCount / raceDuration) * 60);
       
@@ -35,9 +35,9 @@ export default function ResultsView({ room: { roomCode, game, ...room } }: Resul
         wpm,
       };
     })
-    .sort((a: any, b: any) => a.raceDuration - b.raceDuration);
+    .sort((a, b) => a.raceDuration - b.raceDuration);
 
-  const unfinishedPlayers = game.players.filter((p: any) => !p.finishedAt);
+  const unfinishedPlayers = game.players.filter((p) => !p.finishedAt);
   
   const isHost = room.currentUserId === room.hostId;
   
@@ -132,11 +132,10 @@ export default function ResultsView({ room: { roomCode, game, ...room } }: Resul
                     <th>Player</th>
                     <th>WPM</th>
                     <th>Time</th>
-                    <th>Progress</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {results.map((player: any, index: number) => (
+                  {results.map((player, index) => (
                     <tr key={player._id}>
                       <td>
                         <span className="font-bold">#{index + 1}</span>
@@ -154,21 +153,15 @@ export default function ResultsView({ room: { roomCode, game, ...room } }: Resul
                           {player.raceDuration.toFixed(1)}s
                         </div>
                       </td>
-                      <td>
-                        <span className="badge badge-success">Finished</span>
-                      </td>
                     </tr>
                   ))}
                   
-                  {unfinishedPlayers.map((player: any) => (
+                  {unfinishedPlayers.map((player) => (
                     <tr key={player._id} className="opacity-50">
                       <td>-</td>
                       <td>{player.name}</td>
                       <td>-</td>
                       <td>-</td>
-                      <td>
-                        <span className="badge">DNF</span>
-                      </td>
                     </tr>
                   ))}
                 </tbody>

@@ -388,7 +388,7 @@ export default function RaceView({ room: { roomCode, game, ...room } }: RaceView
   return (
     <div className="max-w-6xl mx-auto">
       <div className="text-center mb-8">
-        <h1>Type the Paragraph!</h1>
+        <h1>Type Harder!</h1>
         <div className="not-prose flex justify-center gap-8 text-lg">
           <div>
             <span className="opacity-70">WPM: </span>
@@ -396,7 +396,7 @@ export default function RaceView({ room: { roomCode, game, ...room } }: RaceView
           </div>
           <div>
             <span className="opacity-70">Progress: </span>
-            <span className="font-bold text-primary">{wordsCompleted}/{wordEndIndices.length - 1}</span>
+            <span className="font-bold text-primary">{wordsCompleted}/{wordEndIndices.length}</span>
           </div>
         </div>
       </div>
@@ -410,21 +410,6 @@ export default function RaceView({ room: { roomCode, game, ...room } }: RaceView
               onClick={() => inputRef.current?.focus()}
             >
               {renderFormattedParagraph()}
-            </div>
-            
-            <div className="text-sm opacity-70 mt-4">
-              <div className="flex flex-col gap-1">
-                <div className="flex gap-2">
-                  <span className="font-semibold">Source:</span>
-                  <span>{game.paragraph.bookTitle} → {game.paragraph.sequenceTitle} → {game.paragraph.articleTitle}</span>
-                </div>
-                <div className="flex gap-2">
-                  <span className="font-semibold">Article:</span>
-                  <a href={game.paragraph.articleUrl} target="_blank" rel="noopener noreferrer" className="link link-primary">
-                    View original article
-                  </a>
-                </div>
-              </div>
             </div>
           </div>
         </div>
@@ -456,12 +441,12 @@ export default function RaceView({ room: { roomCode, game, ...room } }: RaceView
           <div className="card-body">
             <h2 className="card-title mb-4">Race Progress</h2>
             <div className="space-y-3">
-              {game?.players?.map((player: any) => {
-                const playerProgress = (player.wordsCompleted / (wordEndIndices.length - 1)) * 100;
+              {game?.players?.map((player) => {
+                const isCurrentUser = currentPlayer && player._id === currentPlayer._id;
+                const playerProgress = 100 * (isCurrentUser ? currentIdx / typingContent.length : (player.wordsCompleted / (wordEndIndices.length)));
                 const playerWpm = elapsedSeconds > 0 
                   ? Math.round((player.wordsCompleted / elapsedSeconds) * 60) 
                   : 0;
-                const isCurrentUser = currentPlayer && player._id === currentPlayer._id;
                 
                 return (
                   <div key={player._id} className="space-y-1">
