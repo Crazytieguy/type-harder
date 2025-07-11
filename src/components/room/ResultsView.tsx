@@ -9,15 +9,24 @@ interface ResultsViewProps {
   room: RoomWithGame;
 }
 
-export default function ResultsView({ room: { roomCode, game, ...room } }: ResultsViewProps) {
+export default function ResultsView({
+  room: { roomCode, game, ...room },
+}: ResultsViewProps) {
   const playAgain = useMutation(api.games.playAgain);
 
-  if (!game || game.status !== "finished" || !game.paragraph || !game.startTime) {
+  if (
+    !game ||
+    game.status !== "finished" ||
+    !game.paragraph ||
+    !game.startTime
+  ) {
     return (
       <div className="text-center">
         <h1>Results Not Available</h1>
         <p>This race hasn't finished yet or results are unavailable.</p>
-        <Link to="/" className="btn btn-primary mt-4">Back to Home</Link>
+        <Link to="/" className="btn btn-primary mt-4">
+          Back to Home
+        </Link>
       </div>
     );
   }
@@ -28,7 +37,7 @@ export default function ResultsView({ room: { roomCode, game, ...room } }: Resul
     .map((player) => {
       const raceDuration = (player.finishedAt! - game.startTime) / 1000;
       const wpm = Math.round((game.paragraph.wordCount / raceDuration) * 60);
-      
+
       return {
         ...player,
         raceDuration,
@@ -38,9 +47,9 @@ export default function ResultsView({ room: { roomCode, game, ...room } }: Resul
     .sort((a, b) => a.raceDuration - b.raceDuration);
 
   const unfinishedPlayers = game.players.filter((p) => !p.finishedAt);
-  
+
   const isHost = room.currentUserId === room.hostId;
-  
+
   const handlePlayAgain = async () => {
     try {
       await playAgain({ roomCode });
@@ -53,7 +62,9 @@ export default function ResultsView({ room: { roomCode, game, ...room } }: Resul
     <div className="max-w-4xl mx-auto">
       <div className="text-center mb-8">
         <h1>Race Results</h1>
-        <p className="text-xl opacity-70">Final standings for room {roomCode}</p>
+        <p className="text-xl opacity-70">
+          Final standings for room {roomCode}
+        </p>
       </div>
 
       <div className="not-prose">
@@ -65,7 +76,7 @@ export default function ResultsView({ room: { roomCode, game, ...room } }: Resul
                 <Trophy className="w-6 h-6 text-warning" />
                 Winners
               </h2>
-              
+
               <div className="flex justify-center items-end gap-4 mb-6">
                 {/* 2nd Place */}
                 {results[1] && (
@@ -73,45 +84,60 @@ export default function ResultsView({ room: { roomCode, game, ...room } }: Resul
                     {results[1].avatarUrl && (
                       <div className="avatar mb-2">
                         <div className="w-16 rounded-full">
-                          <img src={results[1].avatarUrl} alt={results[1].name} />
+                          <img
+                            src={results[1].avatarUrl}
+                            alt={results[1].name}
+                          />
                         </div>
                       </div>
                     )}
                     <div className="text-3xl mb-2">🥈</div>
                     <div className="font-medium">{results[1].name}</div>
-                    <div className="text-sm opacity-70 mt-1">{results[1].wpm} WPM</div>
+                    <div className="text-sm opacity-70 mt-1">
+                      {results[1].wpm} WPM
+                    </div>
                   </div>
                 )}
-                
+
                 {/* 1st Place */}
                 {results[0] && (
                   <div className="bg-warning/20 rounded-lg px-6 py-4 text-center border-2 border-warning">
                     {results[0].avatarUrl && (
                       <div className="avatar mb-2">
                         <div className="w-20 rounded-full ring ring-warning">
-                          <img src={results[0].avatarUrl} alt={results[0].name} />
+                          <img
+                            src={results[0].avatarUrl}
+                            alt={results[0].name}
+                          />
                         </div>
                       </div>
                     )}
                     <div className="text-4xl mb-2">🥇</div>
                     <div className="font-bold text-lg">{results[0].name}</div>
-                    <div className="text-sm opacity-70 mt-1">{results[0].wpm} WPM</div>
+                    <div className="text-sm opacity-70 mt-1">
+                      {results[0].wpm} WPM
+                    </div>
                   </div>
                 )}
-                
+
                 {/* 3rd Place */}
                 {results[2] && (
                   <div className="bg-base-300 rounded-lg px-6 py-4 text-center">
                     {results[2].avatarUrl && (
                       <div className="avatar mb-2">
                         <div className="w-14 rounded-full">
-                          <img src={results[2].avatarUrl} alt={results[2].name} />
+                          <img
+                            src={results[2].avatarUrl}
+                            alt={results[2].name}
+                          />
                         </div>
                       </div>
                     )}
                     <div className="text-2xl mb-2">🥉</div>
                     <div className="font-medium text-sm">{results[2].name}</div>
-                    <div className="text-xs opacity-70 mt-1">{results[2].wpm} WPM</div>
+                    <div className="text-xs opacity-70 mt-1">
+                      {results[2].wpm} WPM
+                    </div>
                   </div>
                 )}
               </div>
@@ -123,7 +149,7 @@ export default function ResultsView({ room: { roomCode, game, ...room } }: Resul
         <div className="card bg-base-200 mb-6">
           <div className="card-body">
             <h2 className="card-title">Complete Results</h2>
-            
+
             <div className="overflow-x-auto">
               <table className="table">
                 <thead>
@@ -155,7 +181,7 @@ export default function ResultsView({ room: { roomCode, game, ...room } }: Resul
                       </td>
                     </tr>
                   ))}
-                  
+
                   {unfinishedPlayers.map((player) => (
                     <tr key={player._id} className="opacity-50">
                       <td>-</td>
@@ -175,13 +201,21 @@ export default function ResultsView({ room: { roomCode, game, ...room } }: Resul
           <div className="card-body">
             <h3 className="font-semibold mb-2">Race Text</h3>
             <p className="text-sm opacity-70 mb-3">
-              From: {game.paragraph.bookTitle} → {game.paragraph.sequenceTitle} → {game.paragraph.articleTitle}
+              From: {game.paragraph.bookTitle} → {game.paragraph.sequenceTitle}{" "}
+              → {game.paragraph.articleTitle}
             </p>
-            <div className="text-sm font-mono leading-relaxed">{renderMarkdown(game.paragraph.content)}</div>
+            <div className="text-sm font-mono leading-relaxed">
+              {renderMarkdown(game.paragraph.content)}
+            </div>
             <div className="text-sm opacity-70 mt-3">
               <div>Word count: {game.paragraph.wordCount}</div>
               <div className="mt-1">
-                <a href={game.paragraph.articleUrl} target="_blank" rel="noopener noreferrer" className="link link-primary">
+                <a
+                  href={game.paragraph.articleUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="link link-primary"
+                >
                   View original article
                 </a>
               </div>
@@ -192,8 +226,8 @@ export default function ResultsView({ room: { roomCode, game, ...room } }: Resul
         {/* Action Buttons */}
         <div className="flex justify-center gap-4">
           {isHost && (
-            <button 
-              onClick={() => void handlePlayAgain()} 
+            <button
+              onClick={() => void handlePlayAgain()}
               className="btn btn-primary"
             >
               <RotateCcw className="w-4 h-4 mr-2" />

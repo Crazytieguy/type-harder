@@ -18,12 +18,16 @@ function HomePage() {
         <Keyboard className="w-16 h-16 text-primary" />
       </div>
       <h1>Type Harder</h1>
-      <p className="text-xl opacity-70">Race through The Sequences, one paragraph at a time</p>
+      <p className="text-xl opacity-70">
+        Race through The Sequences, one paragraph at a time
+      </p>
 
       <Unauthenticated>
         <div className="not-prose mt-8">
           <SignInButton mode="modal">
-            <button className="btn btn-primary btn-lg">Sign In to Start Racing</button>
+            <button className="btn btn-primary btn-lg">
+              Sign In to Start Racing
+            </button>
           </SignInButton>
         </div>
       </Unauthenticated>
@@ -36,10 +40,11 @@ function HomePage() {
 }
 
 const joinRoomSchema = z.object({
-  roomCode: z.string()
+  roomCode: z
+    .string()
     .min(1, "Room code is required")
     .length(6, "Room code must be 6 characters")
-    .transform(v => v.toUpperCase()),
+    .transform((v) => v.toUpperCase()),
 });
 
 function GameOptions() {
@@ -60,7 +65,10 @@ function GameOptions() {
       setError("");
       try {
         await joinRoomMutation({ roomCode: value.roomCode });
-        void navigate({ to: "/room/$roomCode", params: { roomCode: value.roomCode } });
+        void navigate({
+          to: "/room/$roomCode",
+          params: { roomCode: value.roomCode },
+        });
       } catch {
         setError("Room not found or game already started");
       }
@@ -84,9 +92,11 @@ function GameOptions() {
       <div className="card bg-base-200 max-w-md mx-auto">
         <div className="card-body">
           <h2 className="card-title justify-center">Create a New Race</h2>
-          <p className="text-center opacity-70">Start a typing race and invite your friends</p>
+          <p className="text-center opacity-70">
+            Start a typing race and invite your friends
+          </p>
           <div className="card-actions justify-center mt-4">
-            <button 
+            <button
               className="btn btn-primary btn-lg"
               onClick={() => void handleCreateRoom()}
               disabled={isCreating}
@@ -102,8 +112,10 @@ function GameOptions() {
       <div className="card bg-base-200 max-w-md mx-auto">
         <div className="card-body">
           <h2 className="card-title justify-center">Join a Race</h2>
-          <p className="text-center opacity-70">Enter a room code to join an existing race</p>
-          
+          <p className="text-center opacity-70">
+            Enter a room code to join an existing race
+          </p>
+
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -122,24 +134,31 @@ function GameOptions() {
                         !field.state.meta.isValid ? "input-error" : ""
                       }`}
                       value={field.state.value}
-                      onChange={(e) => field.handleChange(e.target.value.toUpperCase().slice(0, 6))}
+                      onChange={(e) =>
+                        field.handleChange(
+                          e.target.value.toUpperCase().slice(0, 6),
+                        )
+                      }
                       onBlur={field.handleBlur}
                       maxLength={6}
                       disabled={joinForm.state.isSubmitting}
                     />
-                    <button 
+                    <button
                       className="btn btn-primary join-item"
                       type="submit"
-                      disabled={!joinForm.state.canSubmit || joinForm.state.isSubmitting}
+                      disabled={
+                        !joinForm.state.canSubmit || joinForm.state.isSubmitting
+                      }
                     >
                       {joinForm.state.isSubmitting ? "Joining..." : "Join"}
                     </button>
                   </div>
-                  {!field.state.meta.isValid && field.state.meta.errors.length > 0 && (
-                    <em className="text-error text-sm mt-1 block">
-                      {field.state.meta.errors[0]?.message}
-                    </em>
-                  )}
+                  {!field.state.meta.isValid &&
+                    field.state.meta.errors.length > 0 && (
+                      <em className="text-error text-sm mt-1 block">
+                        {field.state.meta.errors[0]?.message}
+                      </em>
+                    )}
                 </div>
               )}
             </joinForm.Field>

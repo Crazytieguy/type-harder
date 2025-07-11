@@ -17,7 +17,7 @@ export const Route = createFileRoute("/room/$roomCode")({
 
 function RoomPage() {
   const { roomCode } = Route.useParams();
-  
+
   const roomQueryOptions = convexQuery(api.games.getRoom, { roomCode });
   const { data: room } = useSuspenseQuery(roomQueryOptions);
 
@@ -26,7 +26,9 @@ function RoomPage() {
       <div className="text-center">
         <h1>Room Not Found</h1>
         <p>The room code "{roomCode}" doesn't exist.</p>
-        <Link to="/" className="btn btn-primary mt-4">Back to Home</Link>
+        <Link to="/" className="btn btn-primary mt-4">
+          Back to Home
+        </Link>
       </div>
     );
   }

@@ -77,9 +77,7 @@ function RootComponent() {
                       </Link>
                     </div>
                     <div className="navbar-center hidden lg:flex">
-                      <nav className="flex">
-                        {/* Links could go here */}
-                      </nav>
+                      <nav className="flex">{/* Links could go here */}</nav>
                     </div>
                     <div className="navbar-end">
                       <UserButton />
@@ -105,7 +103,7 @@ function RootComponent() {
                       <div className="menu-title mb-4">Menu</div>
                       <ul className="space-y-2">
                         <li>
-                        <span className="p2">Why are you here?</span>
+                          <span className="p2">Why are you here?</span>
                         </li>
                         {/* Links could go here */}
                       </ul>

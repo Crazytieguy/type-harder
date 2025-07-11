@@ -19,22 +19,27 @@ export const saveParagraph = internalMutation({
 export const updateScrapingProgress = internalMutation({
   args: {
     url: v.string(),
-    status: v.union(v.literal("pending"), v.literal("processing"), v.literal("completed"), v.literal("failed")),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("processing"),
+      v.literal("completed"),
+      v.literal("failed"),
+    ),
     errorMessage: v.optional(v.string()),
   },
   handler: async (ctx, { url, status, errorMessage }) => {
     const existing = await ctx.db
       .query("scrapingProgress")
-      .withIndex("by_url", q => q.eq("url", url))
+      .withIndex("by_url", (q) => q.eq("url", url))
       .unique();
-    
+
     const data = {
       url,
       status,
       lastProcessedAt: Date.now(),
       errorMessage,
     };
-    
+
     if (existing) {
       await ctx.db.patch(existing._id, data);
     } else {

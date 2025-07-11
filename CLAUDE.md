@@ -122,14 +122,16 @@
   const schema = z.object({ name: z.string().min(1) });
   const form = useForm({
     defaultValues: { name: "" },
-    validators: { onChange: schema }
+    validators: { onChange: schema },
   });
   ```
 - Field errors are StandardSchemaV1Issue[] with .message property:
   ```tsx
-  {!field.state.meta.isValid && (
-    <em>{field.state.meta.errors.map(e => e.message).join(", ")}</em>
-  )}
+  {
+    !field.state.meta.isValid && (
+      <em>{field.state.meta.errors.map((e) => e.message).join(", ")}</em>
+    );
+  }
   ```
 - Number inputs use valueAsNumber:
   ```tsx

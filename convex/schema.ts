@@ -33,8 +33,7 @@ export default defineSchema({
     status: v.union(v.literal("playing"), v.literal("finished")),
     selectedParagraphId: v.id("sequences"),
     startTime: v.number(),
-  })
-    .index("by_room", ["roomId"]),
+  }).index("by_room", ["roomId"]),
 
   roomMembers: defineTable({
     userId: v.id("users"),
@@ -55,7 +54,12 @@ export default defineSchema({
 
   scrapingProgress: defineTable({
     url: v.string(),
-    status: v.union(v.literal("pending"), v.literal("processing"), v.literal("completed"), v.literal("failed")),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("processing"),
+      v.literal("completed"),
+      v.literal("failed"),
+    ),
     lastProcessedAt: v.optional(v.number()),
     errorMessage: v.optional(v.string()),
   }).index("by_url", ["url"]),

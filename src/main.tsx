@@ -22,7 +22,7 @@ const queryClient = new QueryClient({
 });
 convexQueryClient.connect(queryClient);
 
-const router = createRouter({ 
+const router = createRouter({
   routeTree,
   context: {
     queryClient,

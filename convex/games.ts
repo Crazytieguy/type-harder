@@ -40,9 +40,9 @@ export const createRoom = mutation({
         .query("rooms")
         .withIndex("by_roomCode", (q) => q.eq("roomCode", roomCode))
         .unique();
-      
+
       existingRoom = !!existing;
-      
+
       attempts++;
       if (attempts > 10) {
         throw new ConvexError("Failed to generate unique room code");
@@ -110,8 +110,8 @@ export const joinRoom = mutation({
     // Check if already in the room
     const existingMember = await ctx.db
       .query("roomMembers")
-      .withIndex("by_user_and_room", (q) => 
-        q.eq("userId", user._id).eq("roomId", room._id)
+      .withIndex("by_user_and_room", (q) =>
+        q.eq("userId", user._id).eq("roomId", room._id),
       )
       .unique();
 
@@ -158,7 +158,7 @@ export const getRoom = query({
     }
 
     // Get the current game (if any)
-    const activeGame = room.hasActiveGame 
+    const activeGame = room.hasActiveGame
       ? await ctx.db
           .query("games")
           .withIndex("by_room", (q) => q.eq("roomId", room._id))
@@ -182,7 +182,7 @@ export const getRoom = query({
           avatarUrl: user?.avatarUrl,
           isReady: member.isReady,
         };
-      })
+      }),
     );
 
     // If there's an active game, get the game data
@@ -208,7 +208,7 @@ export const getRoom = query({
             name: user?.name || "Unknown",
             avatarUrl: user?.avatarUrl,
           };
-        })
+        }),
       );
 
       game = {
@@ -225,7 +225,9 @@ export const getRoom = query({
       members,
       game,
       hasActiveGame: room.hasActiveGame,
-      status: activeGame ? activeGame.status : "waiting" as "waiting" | "playing" | "finished",
+      status: activeGame
+        ? activeGame.status
+        : ("waiting" as "waiting" | "playing" | "finished"),
       currentUserId,
     };
   },
@@ -275,8 +277,8 @@ export const toggleReady = mutation({
     // Find the room member
     const roomMember = await ctx.db
       .query("roomMembers")
-      .withIndex("by_user_and_room", (q) => 
-        q.eq("userId", user._id).eq("roomId", room._id)
+      .withIndex("by_user_and_room", (q) =>
+        q.eq("userId", user._id).eq("roomId", room._id),
       )
       .unique();
 
@@ -345,7 +347,9 @@ export const startGame = mutation({
       .withIndex("by_room", (q) => q.eq("roomId", room._id))
       .collect();
 
-    const allReady = roomMembers.every(m => m.userId === room.hostId || m.isReady);
+    const allReady = roomMembers.every(
+      (m) => m.userId === room.hostId || m.isReady,
+    );
     if (!allReady) {
       throw new ConvexError("Not all players are ready");
     }
@@ -353,14 +357,19 @@ export const startGame = mutation({
     // Select a random paragraph using the provided word count settings
     const paragraphs = await ctx.db
       .query("sequences")
-      .withIndex("by_random", (q) => q.gte("wordCount", minWordCount).lte("wordCount", maxWordCount))
+      .withIndex("by_random", (q) =>
+        q.gte("wordCount", minWordCount).lte("wordCount", maxWordCount),
+      )
       .collect();
 
     if (paragraphs.length === 0) {
-      throw new ConvexError("No paragraphs available. Please run the scraper first.");
+      throw new ConvexError(
+        "No paragraphs available. Please run the scraper first.",
+      );
     }
 
-    const selectedParagraph = paragraphs[Math.floor(Math.random() * paragraphs.length)];
+    const selectedParagraph =
+      paragraphs[Math.floor(Math.random() * paragraphs.length)];
 
     // Create a new game
     const gameId = await ctx.db.insert("games", {
@@ -385,7 +394,6 @@ export const startGame = mutation({
     }
   },
 });
-
 
 export const updateProgress = mutation({
   args: {
@@ -432,8 +440,8 @@ export const updateProgress = mutation({
     // Find the player in this game
     const player = await ctx.db
       .query("players")
-      .withIndex("by_user_and_game", (q) => 
-        q.eq("userId", user._id).eq("gameId", activeGame._id)
+      .withIndex("by_user_and_game", (q) =>
+        q.eq("userId", user._id).eq("gameId", activeGame._id),
       )
       .unique();
 
@@ -462,8 +470,8 @@ export const updateProgress = mutation({
         .withIndex("by_game", (q) => q.eq("gameId", activeGame._id))
         .collect();
 
-      const allFinished = allPlayers.every(p => 
-        p._id === player._id ? true : p.finishedAt !== undefined
+      const allFinished = allPlayers.every((p) =>
+        p._id === player._id ? true : p.finishedAt !== undefined,
       );
 
       if (allFinished) {

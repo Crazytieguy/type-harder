@@ -1,35 +1,45 @@
 import { useForm } from "@tanstack/react-form";
 import { useMutation } from "convex/react";
-import { CheckCircle, Circle, Copy, Crown, Settings, Users } from "lucide-react";
+import {
+  CheckCircle,
+  Circle,
+  Copy,
+  Crown,
+  Settings,
+  Users,
+} from "lucide-react";
 import { useState } from "react";
 import { z } from "zod";
 import { api } from "../../../convex/_generated/api";
 import type { Room } from "../../types/room";
 
-const wordCountSchema = z.object({
-  minWordCount: z.number()
-    .min(10, "Minimum must be at least 10")
-    .max(500, "Minimum cannot exceed 500"),
-  maxWordCount: z.number()
-    .min(10, "Maximum must be at least 10")
-    .max(500, "Maximum cannot exceed 500"),
-}).refine(
-  (data) => data.maxWordCount >= data.minWordCount,
-  {
+const wordCountSchema = z
+  .object({
+    minWordCount: z
+      .number()
+      .min(10, "Minimum must be at least 10")
+      .max(500, "Minimum cannot exceed 500"),
+    maxWordCount: z
+      .number()
+      .min(10, "Maximum must be at least 10")
+      .max(500, "Maximum cannot exceed 500"),
+  })
+  .refine((data) => data.maxWordCount >= data.minWordCount, {
     message: "Maximum must be greater than minimum",
     path: ["maxWordCount"],
-  }
-);
+  });
 
 interface RoomLobbyProps {
   room: Room;
 }
 
-export default function RoomLobby({ room: {roomCode, ...room} }: RoomLobbyProps) {
+export default function RoomLobby({
+  room: { roomCode, ...room },
+}: RoomLobbyProps) {
   const [copied, setCopied] = useState(false);
   const toggleReady = useMutation(api.games.toggleReady);
   const startGame = useMutation(api.games.startGame);
-  
+
   const wordCountForm = useForm({
     defaultValues: {
       minWordCount: 50,
@@ -40,10 +50,10 @@ export default function RoomLobby({ room: {roomCode, ...room} }: RoomLobbyProps)
     },
     onSubmit: async ({ value }) => {
       try {
-        await startGame({ 
-          roomCode, 
-          minWordCount: value.minWordCount, 
-          maxWordCount: value.maxWordCount
+        await startGame({
+          roomCode,
+          minWordCount: value.minWordCount,
+          maxWordCount: value.maxWordCount,
         });
       } catch (err) {
         console.error("Failed to start game:", err);
@@ -52,8 +62,12 @@ export default function RoomLobby({ room: {roomCode, ...room} }: RoomLobbyProps)
   });
 
   const isHost = room.currentUserId === room.hostId;
-  const currentMember = room.members.find((m) => m.userId === room.currentUserId);
-  const allReady = room.members.every((m) => m.userId === room.hostId || m.isReady);
+  const currentMember = room.members.find(
+    (m) => m.userId === room.currentUserId,
+  );
+  const allReady = room.members.every(
+    (m) => m.userId === room.hostId || m.isReady,
+  );
 
   const handleCopyCode = () => {
     void navigator.clipboard.writeText(roomCode);
@@ -74,13 +88,15 @@ export default function RoomLobby({ room: {roomCode, ...room} }: RoomLobbyProps)
       <div className="text-center mb-8">
         <h1>Game Lobby</h1>
         <p className="text-xl opacity-70">Waiting for players to join...</p>
-        
+
         <div className="not-prose mt-6">
           <div className="card bg-base-200 max-w-md mx-auto">
             <div className="card-body">
               <div className="text-sm opacity-70 mb-2">Room Code</div>
-              <div className="text-3xl font-mono font-bold tracking-wider">{roomCode}</div>
-              <button 
+              <div className="text-3xl font-mono font-bold tracking-wider">
+                {roomCode}
+              </div>
+              <button
                 className="btn btn-sm btn-ghost mt-2"
                 onClick={handleCopyCode}
               >
@@ -99,11 +115,11 @@ export default function RoomLobby({ room: {roomCode, ...room} }: RoomLobbyProps)
               <Users className="w-5 h-5" />
               Players ({room.members.length})
             </h2>
-            
+
             <div className="space-y-2 mt-4">
               {room.members.map((member) => (
-                <div 
-                  key={member._id} 
+                <div
+                  key={member._id}
                   className="flex items-center justify-between p-3 bg-base-100 rounded-lg"
                 >
                   <div className="flex items-center gap-3">
@@ -113,17 +129,18 @@ export default function RoomLobby({ room: {roomCode, ...room} }: RoomLobbyProps)
                     )}
                   </div>
                   <div className="flex items-center gap-2">
-                    {member.userId !== room.hostId && (member.isReady ? (
-                      <>
-                        <CheckCircle className="w-5 h-5 text-success" />
-                        <span className="text-sm text-success">Ready</span>
-                      </>
-                    ) : (
-                      <>
-                        <Circle className="w-5 h-5 text-base-content/50" />
-                        <span className="text-sm opacity-50">Not Ready</span>
-                      </>
-                    ))}
+                    {member.userId !== room.hostId &&
+                      (member.isReady ? (
+                        <>
+                          <CheckCircle className="w-5 h-5 text-success" />
+                          <span className="text-sm text-success">Ready</span>
+                        </>
+                      ) : (
+                        <>
+                          <Circle className="w-5 h-5 text-base-content/50" />
+                          <span className="text-sm opacity-50">Not Ready</span>
+                        </>
+                      ))}
                   </div>
                 </div>
               ))}
@@ -132,7 +149,7 @@ export default function RoomLobby({ room: {roomCode, ...room} }: RoomLobbyProps)
             <div className="divider"></div>
 
             {isHost && (
-              <form 
+              <form
                 id="game-settings-form"
                 onSubmit={(e) => {
                   e.preventDefault();
@@ -157,7 +174,9 @@ export default function RoomLobby({ room: {roomCode, ...room} }: RoomLobbyProps)
                               <input
                                 type="number"
                                 value={field.state.value}
-                                onChange={(e) => field.handleChange(e.target.valueAsNumber)}
+                                onChange={(e) =>
+                                  field.handleChange(e.target.valueAsNumber)
+                                }
                                 className={`input input-bordered w-20 text-center ${
                                   !field.state.meta.isValid ? "input-error" : ""
                                 }`}
@@ -172,7 +191,9 @@ export default function RoomLobby({ room: {roomCode, ...room} }: RoomLobbyProps)
                               <input
                                 type="number"
                                 value={field.state.value}
-                                onChange={(e) => field.handleChange(e.target.valueAsNumber)}
+                                onChange={(e) =>
+                                  field.handleChange(e.target.valueAsNumber)
+                                }
                                 className={`input input-bordered w-20 text-center ${
                                   !field.state.meta.isValid ? "input-error" : ""
                                 }`}
@@ -187,22 +208,24 @@ export default function RoomLobby({ room: {roomCode, ...room} }: RoomLobbyProps)
                           <wordCountForm.Field name="minWordCount">
                             {(field) => (
                               <>
-                                {!field.state.meta.isValid && field.state.meta.errors.length > 0 && (
-                                  <em className="text-error text-xs">
-                                    {field.state.meta.errors[0]?.message}
-                                  </em>
-                                )}
+                                {!field.state.meta.isValid &&
+                                  field.state.meta.errors.length > 0 && (
+                                    <em className="text-error text-xs">
+                                      {field.state.meta.errors[0]?.message}
+                                    </em>
+                                  )}
                               </>
                             )}
                           </wordCountForm.Field>
                           <wordCountForm.Field name="maxWordCount">
                             {(field) => (
                               <>
-                                {!field.state.meta.isValid && field.state.meta.errors.length > 0 && (
-                                  <em className="text-error text-xs">
-                                    {field.state.meta.errors[0]?.message}
-                                  </em>
-                                )}
+                                {!field.state.meta.isValid &&
+                                  field.state.meta.errors.length > 0 && (
+                                    <em className="text-error text-xs">
+                                      {field.state.meta.errors[0]?.message}
+                                    </em>
+                                  )}
                               </>
                             )}
                           </wordCountForm.Field>
@@ -216,20 +239,25 @@ export default function RoomLobby({ room: {roomCode, ...room} }: RoomLobbyProps)
 
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
               {currentMember && !isHost && (
-                <button 
+                <button
                   className={`btn ${currentMember.isReady ? "btn-outline" : "btn-primary"}`}
                   onClick={() => void handleToggleReady()}
                 >
                   {currentMember.isReady ? "Not Ready" : "Ready"}
                 </button>
               )}
-              
+
               {isHost && (
-                <button 
+                <button
                   type="submit"
                   form="game-settings-form"
                   className="btn btn-success"
-                  disabled={!allReady || room.members.length < 2 || !wordCountForm.state.canSubmit || wordCountForm.state.isSubmitting}
+                  disabled={
+                    !allReady ||
+                    room.members.length < 2 ||
+                    !wordCountForm.state.canSubmit ||
+                    wordCountForm.state.isSubmitting
+                  }
                 >
                   Start Game
                 </button>
@@ -241,7 +269,7 @@ export default function RoomLobby({ room: {roomCode, ...room} }: RoomLobbyProps)
                 Waiting for other players to be ready
               </p>
             )}
-            
+
             {isHost && room.members.length < 2 && (
               <p className="text-center text-sm opacity-70 mt-2">
                 Need at least 2 players to start

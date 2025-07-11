@@ -8,7 +8,7 @@ export const getScrapingProgress = internalQuery({
   handler: async (ctx, { url }) => {
     return await ctx.db
       .query("scrapingProgress")
-      .withIndex("by_url", q => q.eq("url", url))
+      .withIndex("by_url", (q) => q.eq("url", url))
       .unique();
   },
 });

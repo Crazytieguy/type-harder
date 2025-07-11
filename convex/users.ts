@@ -18,9 +18,12 @@ export const ensureUser = mutation({
       // Update name and avatar if they have changed in Clerk
       const clerkName = identity.name ?? "Anonymous";
       const clerkAvatarUrl = identity.pictureUrl;
-      
-      if (existingUser.name !== clerkName || existingUser.avatarUrl !== clerkAvatarUrl) {
-        await ctx.db.patch(existingUser._id, { 
+
+      if (
+        existingUser.name !== clerkName ||
+        existingUser.avatarUrl !== clerkAvatarUrl
+      ) {
+        await ctx.db.patch(existingUser._id, {
           name: clerkName,
           avatarUrl: clerkAvatarUrl,
         });
