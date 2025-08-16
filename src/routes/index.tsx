@@ -1,8 +1,8 @@
 import { SignInButton } from "@clerk/clerk-react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useForm } from "@tanstack/react-form";
-import { Authenticated, Unauthenticated, useMutation } from "convex/react";
-import { Keyboard } from "lucide-react";
+import { Authenticated, Unauthenticated, useMutation, useQuery } from "convex/react";
+import { Keyboard, LogIn } from "lucide-react";
 import { useState } from "react";
 import { z } from "zod";
 import { api } from "../../convex/_generated/api";
@@ -51,6 +51,7 @@ function GameOptions() {
   const navigate = useNavigate();
   const createRoom = useMutation(api.games.createRoom);
   const joinRoomMutation = useMutation(api.games.joinRoom);
+  const activeRoom = useQuery(api.games.getUserActiveRoom);
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState("");
 
@@ -89,6 +90,26 @@ function GameOptions() {
 
   return (
     <div className="not-prose mt-8 space-y-8">
+      {activeRoom && (
+        <div className="card bg-warning/20 border-2 border-warning max-w-md mx-auto">
+          <div className="card-body">
+            <h2 className="card-title justify-center">Active Room</h2>
+            <p className="text-center text-sm opacity-70">
+              You're already in a room!
+            </p>
+            <div className="card-actions justify-center mt-4">
+              <button
+                onClick={() => void navigate({ to: "/room/$roomCode", params: { roomCode: activeRoom.roomCode } })}
+                className="btn btn-warning"
+              >
+                <LogIn className="w-4 h-4" />
+                Rejoin Room {activeRoom.roomCode}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="card bg-base-200 max-w-md mx-auto">
         <div className="card-body">
           <h2 className="card-title justify-center">Create a New Race</h2>

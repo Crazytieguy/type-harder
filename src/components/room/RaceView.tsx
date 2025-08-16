@@ -1,9 +1,13 @@
 import { useConvexMutation } from "@convex-dev/react-query";
 import { useMutation } from "@tanstack/react-query";
+import { useMutation as useConvexMutationDirect } from "convex/react";
 import type { JSX } from "react";
 import { useRef, useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
+import { LogOut } from "lucide-react";
 import { api } from "../../../convex/_generated/api";
 import type { RoomWithGame } from "../../types/room";
+import SpecialCharacterHints from "./SpecialCharacterHints";
 
 interface RaceViewProps {
   room: RoomWithGame;
@@ -26,15 +30,15 @@ const getCharacterStatus = (
 export default function RaceView({
   room: { roomCode, game, ...room },
 }: RaceViewProps) {
+  const navigate = useNavigate();
+  const leaveRoom = useConvexMutationDirect(api.games.leaveRoom);
   const currentPlayer = game.players.find(
     (p) => p.userId === room.currentUserId,
   );
   const wordsCompleted = currentPlayer?.wordsCompleted ?? 0;
 
   // Extract typing content (without markdown) for validation
-  const typingContent = normalizeQuotes(
-    extractTypingContent(game.paragraph.content),
-  );
+  const typingContent = extractTypingContent(game.paragraph.content);
   const wordEndIndices: number[] = [];
   const matches = typingContent.matchAll(/\s(?=\S)/g);
   for (const match of matches) {
@@ -390,7 +394,7 @@ export default function RaceView({
   };
 
   const handleInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newInput = normalizeQuotes(e.target.value);
+    const newInput = e.target.value;
 
     // Clear error feedback
     setErrorPosition(null);
@@ -411,9 +415,7 @@ export default function RaceView({
     // Check if what they're typing matches what's expected
     let matches = true;
     for (let i = currentIdx; i < potentialFullText.length; i++) {
-      const expectedChar = normalizeChar(typingContent[i]);
-      const typedChar = normalizeChar(potentialFullText[i]);
-      if (expectedChar !== typedChar) {
+      if (typingContent[i] !== potentialFullText[i]) {
         matches = false;
         break;
       }
@@ -445,6 +447,15 @@ export default function RaceView({
     }
   };
 
+  const handleLeaveRoom = async () => {
+    try {
+      await leaveRoom({ roomCode });
+      void navigate({ to: "/" });
+    } catch (err) {
+      console.error("Failed to leave room:", err);
+    }
+  };
+
   return (
     <div className="max-w-6xl mx-auto">
       <div className="text-center mb-8">
@@ -461,9 +472,23 @@ export default function RaceView({
             </span>
           </div>
         </div>
+        {room.currentUserId !== room.hostId && (
+          <div className="not-prose mt-4">
+            <button
+              className="btn btn-sm btn-outline btn-error"
+              onClick={() => void handleLeaveRoom()}
+            >
+              <LogOut className="w-4 h-4" />
+              Leave Room
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="not-prose">
+        {/* Special Character Hints */}
+        <SpecialCharacterHints text={typingContent} />
+
         {/* Paragraph Display */}
         <div className="card bg-base-200 mb-6">
           <div className="card-body">
@@ -566,16 +591,3 @@ const extractTypingContent = (markdown: string) => {
   );
 };
 
-const normalizeQuotes = (text: string) => {
-  // Only normalize the most common smart quotes
-  return text
-    .replace(/[\u201C\u201D]/g, '"') // Smart double quotes
-    .replace(/[\u2018\u2019]/g, "'"); // Smart single quotes
-};
-
-const normalizeChar = (char: string) => {
-  // Simple character normalization for comparison
-  if (char === "\u201C" || char === "\u201D") return '"';
-  if (char === "\u2018" || char === "\u2019") return "'";
-  return char;
-};

@@ -1,4 +1,4 @@
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useMutation } from "convex/react";
 import { Clock, RotateCcw, Trophy, Zap } from "lucide-react";
 import { api } from "../../../convex/_generated/api";
@@ -13,6 +13,8 @@ export default function ResultsView({
   room: { roomCode, game, ...room },
 }: ResultsViewProps) {
   const playAgain = useMutation(api.games.playAgain);
+  const leaveRoom = useMutation(api.games.leaveRoom);
+  const navigate = useNavigate();
 
   if (
     !game ||
@@ -58,13 +60,21 @@ export default function ResultsView({
     }
   };
 
+  const handleLeaveRoom = async () => {
+    try {
+      if (room.currentUserId !== room.hostId) {
+        await leaveRoom({ roomCode });
+      }
+      void navigate({ to: "/" });
+    } catch (err) {
+      console.error("Failed to leave room:", err);
+    }
+  };
+
   return (
     <div className="max-w-4xl mx-auto">
       <div className="text-center mb-8">
         <h1>Race Results</h1>
-        <p className="text-xl opacity-70">
-          Final standings for room {roomCode}
-        </p>
       </div>
 
       <div className="not-prose">
@@ -162,11 +172,18 @@ export default function ResultsView({
                 </thead>
                 <tbody>
                   {results.map((player, index) => (
-                    <tr key={player._id}>
+                    <tr key={player._id} className={player.hasLeft ? "opacity-50" : ""}>
                       <td>
                         <span className="font-bold">#{index + 1}</span>
                       </td>
-                      <td>{player.name}</td>
+                      <td>
+                        <span className={player.hasLeft ? "line-through" : ""}>
+                          {player.name}
+                        </span>
+                        {player.hasLeft && (
+                          <span className="badge badge-ghost badge-sm ml-2">Left</span>
+                        )}
+                      </td>
                       <td>
                         <div className="flex items-center gap-1">
                           <Zap className="w-4 h-4 text-primary" />
@@ -185,7 +202,14 @@ export default function ResultsView({
                   {unfinishedPlayers.map((player) => (
                     <tr key={player._id} className="opacity-50">
                       <td>-</td>
-                      <td>{player.name}</td>
+                      <td>
+                        <span className={player.hasLeft ? "line-through" : ""}>
+                          {player.name}
+                        </span>
+                        {player.hasLeft && (
+                          <span className="badge badge-ghost badge-sm ml-2">Left</span>
+                        )}
+                      </td>
                       <td>-</td>
                       <td>-</td>
                     </tr>
@@ -234,9 +258,12 @@ export default function ResultsView({
               Play Again
             </button>
           )}
-          <Link to="/" className="btn btn-outline">
-            New Game
-          </Link>
+          <button
+            onClick={() => void handleLeaveRoom()}
+            className="btn btn-outline"
+          >
+            Leave Room
+          </button>
         </div>
       </div>
     </div>

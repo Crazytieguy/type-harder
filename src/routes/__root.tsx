@@ -21,7 +21,7 @@ import {
   useMutation,
 } from "convex/react";
 import { ConvexProviderWithClerk } from "convex/react-clerk";
-import { Menu } from "lucide-react";
+import { BarChart3, Menu } from "lucide-react";
 import { useEffect, useState } from "react";
 import { api } from "../../convex/_generated/api";
 
@@ -77,7 +77,12 @@ function RootComponent() {
                       </Link>
                     </div>
                     <div className="navbar-center hidden lg:flex">
-                      <nav className="flex">{/* Links could go here */}</nav>
+                      <nav className="flex gap-2">
+                        <Link to="/stats" className="btn btn-ghost btn-sm">
+                          <BarChart3 className="w-4 h-4 mr-1" />
+                          Stats
+                        </Link>
+                      </nav>
                     </div>
                     <div className="navbar-end">
                       <UserButton />
@@ -103,9 +108,24 @@ function RootComponent() {
                       <div className="menu-title mb-4">Menu</div>
                       <ul className="space-y-2">
                         <li>
-                          <span className="p2">Why are you here?</span>
+                          <Link
+                            to="/"
+                            className="btn btn-ghost btn-sm justify-start"
+                            onClick={() => setIsSidebarOpen(false)}
+                          >
+                            Home
+                          </Link>
                         </li>
-                        {/* Links could go here */}
+                        <li>
+                          <Link
+                            to="/stats"
+                            className="btn btn-ghost btn-sm justify-start"
+                            onClick={() => setIsSidebarOpen(false)}
+                          >
+                            <BarChart3 className="w-4 h-4 mr-1" />
+                            Stats
+                          </Link>
+                        </li>
                       </ul>
                     </div>
                     <div className="mt-auto py-4 border-t border-base-300 flex justify-center items-center">

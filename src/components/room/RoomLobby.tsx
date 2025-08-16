@@ -5,13 +5,18 @@ import {
   Circle,
   Copy,
   Crown,
+  LogOut,
   Settings,
+  UserX,
   Users,
 } from "lucide-react";
 import { useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import { z } from "zod";
 import { api } from "../../../convex/_generated/api";
+import type { Id } from "../../../convex/_generated/dataModel";
 import type { Room } from "../../types/room";
+import DualRangeSlider from "../ui/DualRangeSlider";
 
 const wordCountSchema = z
   .object({
@@ -39,11 +44,15 @@ export default function RoomLobby({
   const [copied, setCopied] = useState(false);
   const toggleReady = useMutation(api.games.toggleReady);
   const startGame = useMutation(api.games.startGame);
+  const joinRoom = useMutation(api.games.joinRoom);
+  const leaveRoom = useMutation(api.games.leaveRoom);
+  const kickPlayer = useMutation(api.games.kickPlayer);
+  const navigate = useNavigate();
 
   const wordCountForm = useForm({
     defaultValues: {
-      minWordCount: 50,
-      maxWordCount: 150,
+      minWordCount: room.minWordCount ?? 50,
+      maxWordCount: room.maxWordCount ?? 150,
     },
     validators: {
       onChange: wordCountSchema,
@@ -80,6 +89,31 @@ export default function RoomLobby({
       await toggleReady({ roomCode });
     } catch (err) {
       console.error("Failed to toggle ready:", err);
+    }
+  };
+
+  const handleJoinRoom = async () => {
+    try {
+      await joinRoom({ roomCode });
+    } catch (err) {
+      console.error("Failed to join room:", err);
+    }
+  };
+
+  const handleLeaveRoom = async () => {
+    try {
+      await leaveRoom({ roomCode });
+      void navigate({ to: "/" });
+    } catch (err) {
+      console.error("Failed to leave room:", err);
+    }
+  };
+
+  const handleKickPlayer = async (playerId: Id<"users">) => {
+    try {
+      await kickPlayer({ roomCode, playerUserId: playerId });
+    } catch (err) {
+      console.error("Failed to kick player:", err);
     }
   };
 
@@ -141,6 +175,15 @@ export default function RoomLobby({
                           <span className="text-sm opacity-50">Not Ready</span>
                         </>
                       ))}
+                    {isHost && member.userId !== room.hostId && (
+                      <button
+                        className="btn btn-ghost btn-xs"
+                        onClick={() => void handleKickPlayer(member.userId)}
+                        title="Kick player"
+                      >
+                        <UserX className="w-4 h-4" />
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}
@@ -160,50 +203,28 @@ export default function RoomLobby({
                 <div className="p-4 bg-base-100 rounded-lg">
                   <h3 className="flex items-center gap-2 font-medium mb-3">
                     <Settings className="w-4 h-4" />
-                    Game Settings
+                    Word Count Range
                   </h3>
                   <div className="space-y-4">
                     <div>
-                      <label className="label">
-                        <span className="label-text">Word Count Range</span>
-                      </label>
-                      <div>
-                        <div className="flex gap-2 items-center">
-                          <wordCountForm.Field name="minWordCount">
-                            {(field) => (
-                              <input
-                                type="number"
-                                value={field.state.value}
-                                onChange={(e) =>
-                                  field.handleChange(e.target.valueAsNumber)
-                                }
-                                className={`input input-bordered w-20 text-center ${
-                                  !field.state.meta.isValid ? "input-error" : ""
-                                }`}
-                                min="10"
-                                max="500"
-                              />
-                            )}
-                          </wordCountForm.Field>
-                          <span>to</span>
-                          <wordCountForm.Field name="maxWordCount">
-                            {(field) => (
-                              <input
-                                type="number"
-                                value={field.state.value}
-                                onChange={(e) =>
-                                  field.handleChange(e.target.valueAsNumber)
-                                }
-                                className={`input input-bordered w-20 text-center ${
-                                  !field.state.meta.isValid ? "input-error" : ""
-                                }`}
-                                min="10"
-                                max="500"
-                              />
-                            )}
-                          </wordCountForm.Field>
-                          <span className="text-sm opacity-70">words</span>
-                        </div>
+                      <div className="px-2">
+                        <wordCountForm.Field name="minWordCount">
+                          {(minField) => (
+                            <wordCountForm.Field name="maxWordCount">
+                              {(maxField) => (
+                                <DualRangeSlider
+                                  min={10}
+                                  max={500}
+                                  step={10}
+                                  minValue={minField.state.value}
+                                  maxValue={maxField.state.value}
+                                  onMinChange={minField.handleChange}
+                                  onMaxChange={maxField.handleChange}
+                                />
+                              )}
+                            </wordCountForm.Field>
+                          )}
+                        </wordCountForm.Field>
                         <div className="h-5 mt-1">
                           <wordCountForm.Field name="minWordCount">
                             {(field) => (
@@ -238,6 +259,15 @@ export default function RoomLobby({
             )}
 
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              {!currentMember && (
+                <button
+                  className="btn btn-primary"
+                  onClick={() => void handleJoinRoom()}
+                >
+                  Join Room
+                </button>
+              )}
+
               {currentMember && !isHost && (
                 <button
                   className={`btn ${currentMember.isReady ? "btn-outline" : "btn-primary"}`}
@@ -260,6 +290,16 @@ export default function RoomLobby({
                   }
                 >
                   Start Game
+                </button>
+              )}
+
+              {currentMember && !isHost && (
+                <button
+                  className="btn btn-outline btn-error"
+                  onClick={() => void handleLeaveRoom()}
+                >
+                  <LogOut className="w-4 h-4" />
+                  Leave Room
                 </button>
               )}
             </div>

@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "aggregate": "@convex-dev/aggregate@0.1.22"
+  }
+}

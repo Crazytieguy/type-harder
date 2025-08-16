@@ -26,6 +26,8 @@ export default defineSchema({
     roomCode: v.string(),
     hostId: v.id("users"),
     hasActiveGame: v.optional(v.literal(true)),
+    minWordCount: v.optional(v.number()),
+    maxWordCount: v.optional(v.number()),
   }).index("by_roomCode", ["roomCode"]),
 
   games: defineTable({
@@ -48,9 +50,11 @@ export default defineSchema({
     gameId: v.id("games"),
     wordsCompleted: v.number(),
     finishedAt: v.optional(v.number()),
+    wpm: v.optional(v.number()),
   })
     .index("by_game", ["gameId"])
-    .index("by_user_and_game", ["userId", "gameId"]),
+    .index("by_user_and_game", ["userId", "gameId"])
+    .index("by_user", ["userId"]),
 
   scrapingProgress: defineTable({
     url: v.string(),

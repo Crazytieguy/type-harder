@@ -12,6 +12,44 @@ function generateRoomCode(): string {
   return code;
 }
 
+export const getUserActiveRoom = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      return null;
+    }
+
+    // Get the user
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
+      .unique();
+
+    if (!user) {
+      return null;
+    }
+
+    // Find any room membership for this user
+    const memberships = await ctx.db
+      .query("roomMembers")
+      .withIndex("by_user_and_room", (q) => q.eq("userId", user._id))
+      .collect();
+
+    for (const membership of memberships) {
+      const room = await ctx.db.get(membership.roomId);
+      if (room) {
+        return {
+          roomCode: room.roomCode,
+          roomId: room._id,
+        };
+      }
+    }
+
+    return null;
+  },
+});
+
 export const createRoom = mutation({
   args: {},
   handler: async (ctx) => {
@@ -28,6 +66,16 @@ export const createRoom = mutation({
 
     if (!user) {
       throw new ConvexError("User not found");
+    }
+
+    // Leave any existing rooms first
+    const existingMemberships = await ctx.db
+      .query("roomMembers")
+      .withIndex("by_user_and_room", (q) => q.eq("userId", user._id))
+      .collect();
+
+    for (const membership of existingMemberships) {
+      await ctx.db.delete(membership._id);
     }
 
     // Generate a unique room code
@@ -119,6 +167,18 @@ export const joinRoom = mutation({
       return { roomId: room._id };
     }
 
+    // Leave any other rooms the user is in
+    const otherMemberships = await ctx.db
+      .query("roomMembers")
+      .withIndex("by_user_and_room", (q) => q.eq("userId", user._id))
+      .collect();
+
+    for (const membership of otherMemberships) {
+      if (membership.roomId !== room._id) {
+        await ctx.db.delete(membership._id);
+      }
+    }
+
     // Add as a room member
     await ctx.db.insert("roomMembers", {
       userId: user._id,
@@ -127,6 +187,120 @@ export const joinRoom = mutation({
     });
 
     return { roomId: room._id };
+  },
+});
+
+export const leaveRoom = mutation({
+  args: {
+    roomCode: v.string(),
+  },
+  handler: async (ctx, { roomCode }) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new ConvexError("Not authenticated");
+    }
+
+    // Get the user
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
+      .unique();
+
+    if (!user) {
+      throw new ConvexError("User not found");
+    }
+
+    // Find the room
+    const room = await ctx.db
+      .query("rooms")
+      .withIndex("by_roomCode", (q) => q.eq("roomCode", roomCode))
+      .unique();
+
+    if (!room) {
+      throw new ConvexError("Room not found");
+    }
+
+    // Check if user is in the room
+    const membership = await ctx.db
+      .query("roomMembers")
+      .withIndex("by_user_and_room", (q) =>
+        q.eq("userId", user._id).eq("roomId", room._id),
+      )
+      .unique();
+
+    if (!membership) {
+      throw new ConvexError("Not a member of this room");
+    }
+
+    // Don't allow host to leave (they would need to transfer host or close room)
+    if (room.hostId === user._id) {
+      throw new ConvexError("Host cannot leave the room");
+    }
+
+    // Remove the membership
+    await ctx.db.delete(membership._id);
+
+    return { success: true };
+  },
+});
+
+export const kickPlayer = mutation({
+  args: {
+    roomCode: v.string(),
+    playerUserId: v.id("users"),
+  },
+  handler: async (ctx, { roomCode, playerUserId }) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new ConvexError("Not authenticated");
+    }
+
+    // Get the user
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
+      .unique();
+
+    if (!user) {
+      throw new ConvexError("User not found");
+    }
+
+    // Find the room
+    const room = await ctx.db
+      .query("rooms")
+      .withIndex("by_roomCode", (q) => q.eq("roomCode", roomCode))
+      .unique();
+
+    if (!room) {
+      throw new ConvexError("Room not found");
+    }
+
+    // Check if user is the host
+    if (room.hostId !== user._id) {
+      throw new ConvexError("Only the host can kick players");
+    }
+
+    // Can't kick yourself
+    if (playerUserId === user._id) {
+      throw new ConvexError("Cannot kick yourself");
+    }
+
+    // Find the player's membership
+    const membership = await ctx.db
+      .query("roomMembers")
+      .withIndex("by_user_and_room", (q) =>
+        q.eq("userId", playerUserId).eq("roomId", room._id),
+      )
+      .unique();
+
+    if (!membership) {
+      throw new ConvexError("Player not in this room");
+    }
+
+    // Remove the membership
+    await ctx.db.delete(membership._id);
+
+    return { success: true };
   },
 });
 
@@ -203,10 +377,18 @@ export const getRoom = query({
       const players = await Promise.all(
         gamePlayers.map(async (player) => {
           const user = await ctx.db.get(player.userId);
+          // Check if player is still in the room
+          const membership = await ctx.db
+            .query("roomMembers")
+            .withIndex("by_user_and_room", (q) =>
+              q.eq("userId", player.userId).eq("roomId", room._id),
+            )
+            .unique();
           return {
             ...player,
             name: user?.name || "Unknown",
             avatarUrl: user?.avatarUrl,
+            hasLeft: !membership,
           };
         }),
       );
@@ -229,6 +411,8 @@ export const getRoom = query({
         ? activeGame.status
         : ("waiting" as "waiting" | "playing" | "finished"),
       currentUserId,
+      minWordCount: room.minWordCount,
+      maxWordCount: room.maxWordCount,
     };
   },
 });
@@ -354,22 +538,31 @@ export const startGame = mutation({
       throw new ConvexError("Not all players are ready");
     }
 
-    // Select a random paragraph using the provided word count settings
-    const paragraphs = await ctx.db
+    // Save the word count settings to the room for future games
+    await ctx.db.patch(room._id, {
+      minWordCount,
+      maxWordCount,
+    });
+
+    // Try to select a random paragraph using aggregate for O(1) selection
+    // First, get total count of paragraphs in the word count range
+    const allParagraphs = await ctx.db
       .query("sequences")
       .withIndex("by_random", (q) =>
         q.gte("wordCount", minWordCount).lte("wordCount", maxWordCount),
       )
       .collect();
 
-    if (paragraphs.length === 0) {
+    if (allParagraphs.length === 0) {
       throw new ConvexError(
         "No paragraphs available. Please run the scraper first.",
       );
     }
 
+    // For now, use the existing approach until we verify aggregate at() works
+    // TODO: Test if randomParagraphs.at(ctx, randomIndex) works with filtering
     const selectedParagraph =
-      paragraphs[Math.floor(Math.random() * paragraphs.length)];
+      allParagraphs[Math.floor(Math.random() * allParagraphs.length)];
 
     // Create a new game
     const gameId = await ctx.db.insert("games", {
@@ -462,7 +655,13 @@ export const updateProgress = mutation({
 
     // Check if finished
     if (wordsCompleted >= paragraph.wordCount && !player.finishedAt) {
-      updates.finishedAt = Date.now();
+      const finishedAt = Date.now();
+      updates.finishedAt = finishedAt;
+      
+      // Calculate WPM
+      const raceDuration = (finishedAt - activeGame.startTime) / 1000; // in seconds
+      const wpm = Math.round((paragraph.wordCount / raceDuration) * 60);
+      updates.wpm = wpm;
 
       // Check if all players have finished
       const allPlayers = await ctx.db

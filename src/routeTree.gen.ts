@@ -11,10 +11,17 @@
 // Import Routes
 
 import { Route as rootRoute } from './routes/__root'
+import { Route as StatsImport } from './routes/stats'
 import { Route as IndexImport } from './routes/index'
 import { Route as RoomRoomCodeImport } from './routes/room.$roomCode'
 
 // Create/Update Routes
+
+const StatsRoute = StatsImport.update({
+  id: '/stats',
+  path: '/stats',
+  getParentRoute: () => rootRoute,
+} as any)
 
 const IndexRoute = IndexImport.update({
   id: '/',
@@ -39,6 +46,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexImport
       parentRoute: typeof rootRoute
     }
+    '/stats': {
+      id: '/stats'
+      path: '/stats'
+      fullPath: '/stats'
+      preLoaderRoute: typeof StatsImport
+      parentRoute: typeof rootRoute
+    }
     '/room/$roomCode': {
       id: '/room/$roomCode'
       path: '/room/$roomCode'
@@ -53,36 +67,41 @@ declare module '@tanstack/react-router' {
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/stats': typeof StatsRoute
   '/room/$roomCode': typeof RoomRoomCodeRoute
 }
 
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/stats': typeof StatsRoute
   '/room/$roomCode': typeof RoomRoomCodeRoute
 }
 
 export interface FileRoutesById {
   __root__: typeof rootRoute
   '/': typeof IndexRoute
+  '/stats': typeof StatsRoute
   '/room/$roomCode': typeof RoomRoomCodeRoute
 }
 
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/room/$roomCode'
+  fullPaths: '/' | '/stats' | '/room/$roomCode'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/room/$roomCode'
-  id: '__root__' | '/' | '/room/$roomCode'
+  to: '/' | '/stats' | '/room/$roomCode'
+  id: '__root__' | '/' | '/stats' | '/room/$roomCode'
   fileRoutesById: FileRoutesById
 }
 
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  StatsRoute: typeof StatsRoute
   RoomRoomCodeRoute: typeof RoomRoomCodeRoute
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  StatsRoute: StatsRoute,
   RoomRoomCodeRoute: RoomRoomCodeRoute,
 }
 
@@ -97,11 +116,15 @@ export const routeTree = rootRoute
       "filePath": "__root.tsx",
       "children": [
         "/",
+        "/stats",
         "/room/$roomCode"
       ]
     },
     "/": {
       "filePath": "index.tsx"
+    },
+    "/stats": {
+      "filePath": "stats.tsx"
     },
     "/room/$roomCode": {
       "filePath": "room.$roomCode.tsx"
