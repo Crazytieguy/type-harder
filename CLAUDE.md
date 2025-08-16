@@ -4,7 +4,7 @@
 ## Project Overview
 
 - Full-stack TypeScript app: React + Vite + TanStack Router (frontend), Convex (backend), Clerk (auth)
-- Development: Use `tmux new-session -d -s "$(jq -r .name package.json)-dev" 'pnpm dev'` to start servers in background session. Monitor outputs with `tmux capture-pane -t <session-name> -p` for validation
+- Development: Run `pnpm dev` with the `run_in_background` parameter to start both frontend and backend servers. Monitor output using the BashOutput tool
 - Import alias: `@/` maps to `src/` directory
 - Tailwind CSS 4, daisyUI 5: All config in `src/index.css` via CSS syntax, NOT tailwind.config.js
 - Typography: Uses `@tailwindcss/typography` with `prose prose-invert` at root level, use `not-prose` to escape (e.g., for buttons/tables)
@@ -23,7 +23,7 @@
 ## Testing & Validation
 
 - Always follow these steps before squashing or pushing
-- Check tmux session output for TypeScript/compilation errors from both Vite and Convex using `tmux capture-pane -t "$(jq -r .name package.json)-dev" -p`
+- Check background process output for Convex backend errors. Run `pnpm lint` for comprehensive type checking and linting across the codebase
 - Test UI with Playwright MCP: full browser automation with element interaction and console access
   - The playwright mcp server is unreliable, if it doesn't work ask the user to test manually
 - Responsive testing: Use `mcp__playwright__browser_resize` to test mobile (375x667), tablet (768x1024), desktop (1200x800)
