@@ -17,11 +17,15 @@ src/
 │   ├── index.tsx    # Home - create/join rooms
 │   ├── room.$roomCode.tsx    # Game lobby with ready states
 │   ├── race.$roomCode.tsx    # Active race with word validation
-│   └── results.$roomCode.tsx # Final rankings and statistics
+│   ├── results.$roomCode.tsx # Final rankings and statistics
+│   └── stats.tsx    # User statistics with paginated race history
 convex/
 ├── games.ts         # Room creation, joining, and race logic
 ├── users.ts         # User management with Clerk integration
+├── stats.ts         # User statistics and race history queries
+├── aggregates.ts    # O(1) random selection with Convex aggregates
+├── dbHelpers.ts     # Encapsulated database operations with aggregate maintenance
 ├── scraping.ts      # Node.js action for content fetching
 ├── scrapingMutations.ts  # Database operations for content
-└── schema.ts        # Tables: sequences, gameRooms, players, scrapingProgress
+└── schema.ts        # Tables: sequences, gameRooms, players, roomMembers, scrapingProgress
 ```

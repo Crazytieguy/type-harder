@@ -1,10 +1,11 @@
 import { convexQuery } from "@convex-dev/react-query";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Activity, Award, ChevronDown, ChevronUp, ExternalLink, TrendingUp, User } from "lucide-react";
+import { Activity, Award, ChevronDown, ChevronUp, ExternalLink, TrendingUp, User, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { api } from "../../convex/_generated/api";
 import { renderMarkdown } from "../utils/markdown";
+import { usePaginatedQuery } from "convex/react";
 
 export const Route = createFileRoute("/stats")({
   loader: async ({ context: { queryClient } }) => {
@@ -18,6 +19,16 @@ function StatsPage() {
   const statsQueryOptions = convexQuery(api.stats.getUserStats, {});
   const { data } = useSuspenseQuery(statsQueryOptions);
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
+  
+  const { 
+    results: recentRaces, 
+    status, 
+    loadMore 
+  } = usePaginatedQuery(
+    api.stats.getUserRecentRaces,
+    {},
+    { initialNumItems: 10 }
+  );
 
   if (!data) {
     return (
@@ -86,7 +97,14 @@ function StatsPage() {
         </div>
 
         {/* Recent Races */}
-        {stats.recentRaces.length > 0 ? (
+        {status === "LoadingFirstPage" ? (
+          <div className="card bg-base-200">
+            <div className="card-body text-center">
+              <Loader2 className="w-8 h-8 mx-auto animate-spin text-primary mb-2" />
+              <p className="opacity-70">Loading recent races...</p>
+            </div>
+          </div>
+        ) : recentRaces && recentRaces.length > 0 ? (
           <div className="card bg-base-200">
             <div className="card-body">
               <h2 className="card-title mb-4">Recent Races</h2>
@@ -102,7 +120,7 @@ function StatsPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {stats.recentRaces.map((race, idx) => {
+                    {recentRaces.map((race, idx) => {
                       const date = new Date(race.finishedAt);
                       const isPersonalBest = race.wpm === stats.bestWpm;
                       const isExpanded = expandedRows.has(idx);
@@ -183,6 +201,27 @@ function StatsPage() {
                   </tbody>
                 </table>
               </div>
+              {status === "CanLoadMore" && (
+                <div className="text-center mt-4">
+                  <button 
+                    className="btn btn-primary"
+                    onClick={() => loadMore(10)}
+                  >
+                    Load More Races
+                  </button>
+                </div>
+              )}
+              {status === "LoadingMore" && (
+                <div className="text-center mt-4">
+                  <Loader2 className="w-6 h-6 inline-block animate-spin text-primary mr-2" />
+                  <span className="opacity-70">Loading more...</span>
+                </div>
+              )}
+              {status === "Exhausted" && recentRaces.length > 10 && (
+                <div className="text-center mt-4 text-sm opacity-70">
+                  All races loaded
+                </div>
+              )}
             </div>
           </div>
         ) : (

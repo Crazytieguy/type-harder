@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { internalMutation } from "./_generated/server";
+import { insertSequence } from "./dbHelpers";
 
 export const saveParagraph = internalMutation({
   args: {
@@ -12,7 +13,7 @@ export const saveParagraph = internalMutation({
     wordCount: v.number(),
   },
   handler: async (ctx, args) => {
-    await ctx.db.insert("sequences", args);
+    await insertSequence(ctx, args);
   },
 });
 

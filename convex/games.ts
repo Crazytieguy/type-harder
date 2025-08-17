@@ -1,8 +1,9 @@
 import { ConvexError, v } from "convex/values";
 import { Doc } from "./_generated/dataModel";
 import { mutation, query } from "./_generated/server";
+import { getRandomParagraphInRange } from "./aggregates";
+import { insertPlayer, updatePlayer } from "./dbHelpers";
 
-// Generate a random 6-character room code
 function generateRoomCode(): string {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
   let code = "";
@@ -20,7 +21,6 @@ export const getUserActiveRoom = query({
       return null;
     }
 
-    // Get the user
     const user = await ctx.db
       .query("users")
       .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
@@ -30,13 +30,12 @@ export const getUserActiveRoom = query({
       return null;
     }
 
-    // Find any room membership for this user
-    const memberships = await ctx.db
+    const membership = await ctx.db
       .query("roomMembers")
       .withIndex("by_user_and_room", (q) => q.eq("userId", user._id))
-      .collect();
+      .unique();
 
-    for (const membership of memberships) {
+    if (membership) {
       const room = await ctx.db.get(membership.roomId);
       if (room) {
         return {
@@ -58,7 +57,6 @@ export const createRoom = mutation({
       throw new ConvexError("Not authenticated");
     }
 
-    // Get the user
     const user = await ctx.db
       .query("users")
       .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
@@ -68,7 +66,6 @@ export const createRoom = mutation({
       throw new ConvexError("User not found");
     }
 
-    // Leave any existing rooms first
     const existingMemberships = await ctx.db
       .query("roomMembers")
       .withIndex("by_user_and_room", (q) => q.eq("userId", user._id))
@@ -124,7 +121,6 @@ export const joinRoom = mutation({
       throw new ConvexError("Not authenticated");
     }
 
-    // Get the user
     const user = await ctx.db
       .query("users")
       .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
@@ -200,7 +196,6 @@ export const leaveRoom = mutation({
       throw new ConvexError("Not authenticated");
     }
 
-    // Get the user
     const user = await ctx.db
       .query("users")
       .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
@@ -269,7 +264,6 @@ export const kickPlayer = mutation({
       throw new ConvexError("Not authenticated");
     }
 
-    // Get the user
     const user = await ctx.db
       .query("users")
       .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
@@ -441,7 +435,6 @@ export const toggleReady = mutation({
       throw new ConvexError("Not authenticated");
     }
 
-    // Get the user
     const user = await ctx.db
       .query("users")
       .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
@@ -503,7 +496,6 @@ export const startGame = mutation({
       throw new ConvexError("Not authenticated");
     }
 
-    // Get the user
     const user = await ctx.db
       .query("users")
       .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
@@ -552,31 +544,24 @@ export const startGame = mutation({
       throw new ConvexError("Not all players are ready");
     }
 
-    // Save the word count settings to the room for future games
     await ctx.db.patch(room._id, {
       minWordCount,
       maxWordCount,
     });
 
-    // Try to select a random paragraph using aggregate for O(1) selection
-    // First, get total count of paragraphs in the word count range
-    const allParagraphs = await ctx.db
-      .query("sequences")
-      .withIndex("by_random", (q) =>
-        q.gte("wordCount", minWordCount).lte("wordCount", maxWordCount),
-      )
-      .collect();
+    // For now, fall back to the traditional approach until we figure out bounds
+    // TODO: Use aggregate for O(1) selection once bounds issue is resolved
+    const selectedParagraph = await getRandomParagraphInRange(
+      ctx,
+      minWordCount,
+      maxWordCount
+    );
 
-    if (allParagraphs.length === 0) {
+    if (!selectedParagraph) {
       throw new ConvexError(
-        "No paragraphs available. Please run the scraper first.",
+        "No paragraphs available in the specified word count range. Please run the scraper first.",
       );
     }
-
-    // For now, use the existing approach until we verify aggregate at() works
-    // TODO: Test if randomParagraphs.at(ctx, randomIndex) works with filtering
-    const selectedParagraph =
-      allParagraphs[Math.floor(Math.random() * allParagraphs.length)];
 
     // Create a new game
     const gameId = await ctx.db.insert("games", {
@@ -593,7 +578,7 @@ export const startGame = mutation({
 
     // Create player entries for all room members
     for (const member of roomMembers) {
-      await ctx.db.insert("players", {
+      await insertPlayer(ctx, {
         userId: member.userId,
         gameId,
         wordsCompleted: 0,
@@ -613,7 +598,6 @@ export const updateProgress = mutation({
       throw new ConvexError("Not authenticated");
     }
 
-    // Get the user
     const user = await ctx.db
       .query("users")
       .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
@@ -694,7 +678,7 @@ export const updateProgress = mutation({
       }
     }
 
-    await ctx.db.patch(player._id, updates);
+    await updatePlayer(ctx, player._id, updates);
   },
 });
 
@@ -708,7 +692,6 @@ export const playAgain = mutation({
       throw new ConvexError("Not authenticated");
     }
 
-    // Get the user
     const user = await ctx.db
       .query("users")
       .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
