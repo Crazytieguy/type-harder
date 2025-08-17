@@ -99,7 +99,7 @@ export default function DualRangeSlider({
           style={{ left: `${minPercent}%` }}
           onMouseDown={() => handleMouseDown("min")}
         >
-          <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-base-100 px-2 py-1 rounded text-xs font-medium whitespace-nowrap">
+          <div className="absolute -top-9 left-1/2 transform -translate-x-1/2 bg-base-100 border border-base-300 px-2 py-1 rounded text-xs font-medium whitespace-nowrap">
             {minValue}
           </div>
         </div>
@@ -112,7 +112,7 @@ export default function DualRangeSlider({
           style={{ left: `${maxPercent}%` }}
           onMouseDown={() => handleMouseDown("max")}
         >
-          <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-base-100 px-2 py-1 rounded text-xs font-medium whitespace-nowrap">
+          <div className="absolute -top-9 left-1/2 transform -translate-x-1/2 bg-base-100 border border-base-300 px-2 py-1 rounded text-xs font-medium whitespace-nowrap">
             {maxValue}
           </div>
         </div>

@@ -207,7 +207,7 @@ export default function RoomLobby({
                   </h3>
                   <div className="space-y-4">
                     <div>
-                      <div className="px-2">
+                      <div className="px-2 mt-8">
                         <wordCountForm.Field name="minWordCount">
                           {(minField) => (
                             <wordCountForm.Field name="maxWordCount">
@@ -293,7 +293,7 @@ export default function RoomLobby({
                 </button>
               )}
 
-              {currentMember && !isHost && (
+              {currentMember && (
                 <button
                   className="btn btn-outline btn-error"
                   onClick={() => void handleLeaveRoom()}

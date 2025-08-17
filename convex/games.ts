@@ -232,13 +232,27 @@ export const leaveRoom = mutation({
       throw new ConvexError("Not a member of this room");
     }
 
-    // Don't allow host to leave (they would need to transfer host or close room)
-    if (room.hostId === user._id) {
-      throw new ConvexError("Host cannot leave the room");
-    }
-
-    // Remove the membership
+    // Remove the membership first
     await ctx.db.delete(membership._id);
+
+    // If host is leaving, transfer host to another member
+    if (room.hostId === user._id) {
+      // Get all remaining members (after we've left)
+      const remainingMembers = await ctx.db
+        .query("roomMembers")
+        .withIndex("by_room", (q) => q.eq("roomId", room._id))
+        .collect();
+      
+      if (remainingMembers.length > 0) {
+        // Transfer host to the first remaining member
+        await ctx.db.patch(room._id, {
+          hostId: remainingMembers[0].userId,
+        });
+      } else {
+        // No other members, delete the room
+        await ctx.db.delete(room._id);
+      }
+    }
 
     return { success: true };
   },

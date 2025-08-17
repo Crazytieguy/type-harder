@@ -12,166 +12,166 @@ const specialCharacters: Record<
   { mac?: string; windows?: string; linux?: string; name: string }
 > = {
   "\u2026": {
-    mac: "Option + ;",
-    windows: "Alt + 0133",
-    linux: "Compose + . + .",
+    mac: "⌥;",
+    windows: "Alt+0133",
+    linux: "Compose . .",
     name: "Ellipsis",
   },
   "\u2014": {
-    mac: "Option + Shift + -",
-    windows: "Alt + 0151",
-    linux: "Compose + - + - + -",
+    mac: "⌥⇧-",
+    windows: "Alt+0151",
+    linux: "Compose - - -",
     name: "Em dash",
   },
   "\u2013": {
-    mac: "Option + -",
-    windows: "Alt + 0150",
-    linux: "Compose + - + - + .",
+    mac: "⌥-",
+    windows: "Alt+0150",
+    linux: "Compose - - .",
     name: "En dash",
   },
   "\u201C": {
-    mac: "Option + [",
-    windows: "Alt + 0147",
-    linux: 'Compose + " + <',
+    mac: "⌥[",
+    windows: "Alt+0147",
+    linux: 'Compose " <',
     name: "Left double quote",
   },
   "\u201D": {
-    mac: "Option + Shift + [",
-    windows: "Alt + 0148",
-    linux: 'Compose + " + >',
+    mac: "⌥⇧[",
+    windows: "Alt+0148",
+    linux: 'Compose " >',
     name: "Right double quote",
   },
   "\u2018": {
-    mac: "Option + ]",
-    windows: "Alt + 0145",
-    linux: "Compose + ' + <",
+    mac: "⌥]",
+    windows: "Alt+0145",
+    linux: "Compose ' <",
     name: "Left single quote",
   },
   "\u2019": {
-    mac: "Option + Shift + ]",
-    windows: "Alt + 0146",
-    linux: "Compose + ' + >",
+    mac: "⌥⇧]",
+    windows: "Alt+0146",
+    linux: "Compose ' >",
     name: "Right single quote",
   },
   "\u2264": {
-    mac: "Option + ,",
-    windows: "Alt + 2264",
-    linux: "Compose + < + =",
-    name: "Less than or equal",
+    mac: "⌥,",
+    windows: "Alt+2264",
+    linux: "Compose < =",
+    name: "≤",
   },
   "\u2265": {
-    mac: "Option + .",
-    windows: "Alt + 2265",
-    linux: "Compose + > + =",
-    name: "Greater than or equal",
+    mac: "⌥.",
+    windows: "Alt+2265",
+    linux: "Compose > =",
+    name: "≥",
   },
   "\u2260": {
-    mac: "Option + =",
-    windows: "Alt + 2260",
-    linux: "Compose + / + =",
-    name: "Not equal",
+    mac: "⌥=",
+    windows: "Alt+2260",
+    linux: "Compose / =",
+    name: "≠",
   },
   "\u221E": {
-    mac: "Option + 5",
-    windows: "Alt + 236",
-    linux: "Compose + o + o",
-    name: "Infinity",
+    mac: "⌥5",
+    windows: "Alt+236",
+    linux: "Compose o o",
+    name: "∞",
   },
   "\u00B0": {
-    mac: "Option + Shift + 8",
-    windows: "Alt + 0176",
-    linux: "Compose + o + o",
-    name: "Degree",
+    mac: "⌥⇧8",
+    windows: "Alt+0176",
+    linux: "Compose o o",
+    name: "°",
   },
   "\u00D7": {
-    mac: "Option + x",
-    windows: "Alt + 0215",
-    linux: "Compose + x + x",
-    name: "Multiplication sign",
+    mac: "⌥x",
+    windows: "Alt+0215",
+    linux: "Compose x x",
+    name: "×",
   },
   "\u00F7": {
-    mac: "Option + /",
-    windows: "Alt + 0247",
-    linux: "Compose + : + -",
-    name: "Division sign",
+    mac: "⌥/",
+    windows: "Alt+0247",
+    linux: "Compose : -",
+    name: "÷",
   },
   "\u00B1": {
-    mac: "Option + Shift + =",
-    windows: "Alt + 0177",
-    linux: "Compose + + + -",
-    name: "Plus-minus",
+    mac: "⌥⇧=",
+    windows: "Alt+0177",
+    linux: "Compose + -",
+    name: "±",
   },
   "\u2192": {
-    mac: "Option + Shift + Right",
-    windows: "Alt + 26",
-    linux: "Compose + - + >",
-    name: "Right arrow",
+    mac: "⌥⇧→",
+    windows: "Alt+26",
+    linux: "Compose - >",
+    name: "→",
   },
   "\u2190": {
-    mac: "Option + Shift + Left",
-    windows: "Alt + 27",
-    linux: "Compose + < + -",
-    name: "Left arrow",
+    mac: "⌥⇧←",
+    windows: "Alt+27",
+    linux: "Compose < -",
+    name: "←",
   },
   "\u2194": {
-    mac: "Option + Shift + Up/Down",
-    windows: "Alt + 29",
-    linux: "Compose + < + - + >",
-    name: "Left-right arrow",
+    mac: "⌥⇧↑/↓",
+    windows: "Alt+29",
+    linux: "Compose < - >",
+    name: "↔",
   },
   "\u00B5": {
-    mac: "Option + m",
-    windows: "Alt + 0181",
-    linux: "Compose + u + u",
-    name: "Micro sign",
+    mac: "⌥m",
+    windows: "Alt+0181",
+    linux: "Compose u u",
+    name: "µ",
   },
   "\u03C0": {
-    mac: "Option + p",
-    windows: "Alt + 227",
-    linux: "Compose + * + p",
-    name: "Pi",
+    mac: "⌥p",
+    windows: "Alt+227",
+    linux: "Compose * p",
+    name: "π",
   },
   "\u03A3": {
-    mac: "Option + w",
-    windows: "Alt + 228",
-    linux: "Compose + * + S",
-    name: "Sigma",
+    mac: "⌥w",
+    windows: "Alt+228",
+    linux: "Compose * S",
+    name: "Σ",
   },
   "\u221A": {
-    mac: "Option + v",
-    windows: "Alt + 251",
-    linux: "Compose + / + v",
-    name: "Square root",
+    mac: "⌥v",
+    windows: "Alt+251",
+    linux: "Compose / v",
+    name: "√",
   },
   "\u2208": {
-    mac: "Option + Shift + e",
-    windows: "Alt + 8712",
-    linux: "Compose + ( + -",
-    name: "Element of",
+    mac: "⌥⇧e",
+    windows: "Alt+8712",
+    linux: "Compose ( -",
+    name: "∈",
   },
   "\u2209": {
-    mac: "Option + Shift + e + /",
-    windows: "Alt + 8713",
-    linux: "Compose + ( + / + -",
-    name: "Not element of",
+    mac: "⌥⇧e/",
+    windows: "Alt+8713",
+    linux: "Compose ( / -",
+    name: "∉",
   },
   "\u2286": {
-    mac: "Option + Shift + s",
-    windows: "Alt + 8838",
-    linux: "Compose + ( + _",
-    name: "Subset of or equal",
+    mac: "⌥⇧s",
+    windows: "Alt+8838",
+    linux: "Compose ( _",
+    name: "⊆",
   },
   "\u2200": {
-    mac: "Option + Shift + a",
-    windows: "Alt + 8704",
-    linux: "Compose + A + A",
-    name: "For all",
+    mac: "⌥⇧a",
+    windows: "Alt+8704",
+    linux: "Compose A A",
+    name: "∀",
   },
   "\u2203": {
-    mac: "Option + Shift + e",
-    windows: "Alt + 8707",
-    linux: "Compose + E + E",
-    name: "There exists",
+    mac: "⌥⇧e",
+    windows: "Alt+8707",
+    linux: "Compose E E",
+    name: "∃",
   },
 };
 
@@ -211,52 +211,45 @@ export default function SpecialCharacterHints({
 
   return (
     <div className="card bg-base-200 mb-4">
-      <div className="card-body py-3 px-4">
+      <div className="card-body py-2 px-4">
         <div className="flex items-start gap-2">
           <Info className="w-4 h-4 text-info mt-0.5 flex-shrink-0" />
-          <div className="text-sm">
-            <div className="font-medium mb-1">
-              Special character typing hints:
-            </div>
-            <div className="space-y-1 opacity-90">
+          <div className="text-xs flex-1">
+            <div className="font-medium mb-1">Special characters:</div>
+            <div className="flex flex-wrap gap-x-4 gap-y-1">
               {foundCharacters.map(([char, hints]) => {
-                const shortcuts = [];
+                let shortcut = "";
                 if (os === "mac" && hints.mac) {
-                  shortcuts.push(hints.mac);
+                  shortcut = hints.mac;
                 } else if (os === "windows" && hints.windows) {
-                  shortcuts.push(hints.windows);
+                  shortcut = hints.windows;
                 } else if (os === "linux" && hints.linux) {
-                  shortcuts.push(hints.linux);
+                  shortcut = hints.linux;
                 } else {
-                  // Show all available options if OS is unknown
-                  if (hints.mac) shortcuts.push(`Mac: ${hints.mac}`);
-                  if (hints.windows) shortcuts.push(`Win: ${hints.windows}`);
-                  if (hints.linux) shortcuts.push(`Linux: ${hints.linux}`);
+                  // Show first available option if OS is unknown
+                  if (hints.mac) shortcut = hints.mac;
+                  else if (hints.windows) shortcut = hints.windows;
+                  else if (hints.linux) shortcut = hints.linux;
                 }
 
                 return (
-                  <div key={char} className="flex items-center gap-2">
-                    <span className="font-mono text-base font-bold">
-                      {char}
-                    </span>
-                    <span className="opacity-70">({hints.name})</span>
-                    <span className="text-primary font-medium">
-                      {shortcuts.join(" | ")}
-                    </span>
+                  <div key={char} className="flex items-center gap-1 whitespace-nowrap">
+                    <span className="font-mono text-sm font-bold">{char}</span>
+                    <span className="text-primary opacity-90">{shortcut}</span>
                   </div>
                 );
               })}
-              {os === "windows" && (
-                <div className="text-xs opacity-70 mt-2">
-                  Tip: Hold Alt and type numbers on the numpad
-                </div>
-              )}
-              {os === "linux" && (
-                <div className="text-xs opacity-70 mt-2">
-                  Tip: Enable Compose key in your keyboard settings
-                </div>
-              )}
             </div>
+            {os === "windows" && (
+              <div className="text-xs opacity-60 mt-1">
+                Hold Alt + numpad
+              </div>
+            )}
+            {os === "linux" && (
+              <div className="text-xs opacity-60 mt-1">
+                Enable Compose key
+              </div>
+            )}
           </div>
         </div>
       </div>

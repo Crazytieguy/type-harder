@@ -62,9 +62,7 @@ export default function ResultsView({
 
   const handleLeaveRoom = async () => {
     try {
-      if (room.currentUserId !== room.hostId) {
-        await leaveRoom({ roomCode });
-      }
+      await leaveRoom({ roomCode });
       void navigate({ to: "/" });
     } catch (err) {
       console.error("Failed to leave room:", err);

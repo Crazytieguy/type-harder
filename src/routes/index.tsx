@@ -53,6 +53,7 @@ function GameOptions() {
   const joinRoomMutation = useMutation(api.games.joinRoom);
   const activeRoom = useQuery(api.games.getUserActiveRoom);
   const [isCreating, setIsCreating] = useState(false);
+  const [isJoining, setIsJoining] = useState(false);
   const [error, setError] = useState("");
 
   const joinForm = useForm({
@@ -64,6 +65,7 @@ function GameOptions() {
     },
     onSubmit: async ({ value }) => {
       setError("");
+      setIsJoining(true);
       try {
         await joinRoomMutation({ roomCode: value.roomCode });
         void navigate({
@@ -72,6 +74,7 @@ function GameOptions() {
         });
       } catch {
         setError("Room not found or game already started");
+        setIsJoining(false);
       }
     },
   });
@@ -90,7 +93,7 @@ function GameOptions() {
 
   return (
     <div className="not-prose mt-8 space-y-8">
-      {activeRoom && (
+      {activeRoom && !isCreating && !isJoining && (
         <div className="card bg-warning/20 border-2 border-warning max-w-md mx-auto">
           <div className="card-body">
             <h2 className="card-title justify-center">Active Room</h2>

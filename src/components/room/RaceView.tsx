@@ -50,6 +50,7 @@ export default function RaceView({
 
   const [currentIdx, setCurrentIdx] = useState(completedIdx);
   const [errorPosition, setErrorPosition] = useState<number | null>(null);
+  const [isFocused, setIsFocused] = useState(true);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const currentWordProgress = typingContent.slice(completedIdx, currentIdx);
@@ -472,25 +473,24 @@ export default function RaceView({
             </span>
           </div>
         </div>
-        {room.currentUserId !== room.hostId && (
-          <div className="not-prose mt-4">
-            <button
-              className="btn btn-sm btn-outline btn-error"
-              onClick={() => void handleLeaveRoom()}
-            >
-              <LogOut className="w-4 h-4" />
-              Leave Room
-            </button>
-          </div>
-        )}
+        <div className="not-prose mt-4">
+          <button
+            className="btn btn-sm btn-outline btn-error"
+            onClick={() => void handleLeaveRoom()}
+          >
+            <LogOut className="w-4 h-4" />
+            Leave Room
+          </button>
+        </div>
       </div>
 
       <div className="not-prose">
-        {/* Special Character Hints */}
-        <SpecialCharacterHints text={typingContent} />
-
         {/* Paragraph Display */}
-        <div className="card bg-base-200 mb-6">
+        <div className={`card bg-base-200 mb-6 transition-all ${
+          !isFocused && currentIdx < typingContent.length
+            ? "ring-2 ring-warning animate-pulse"
+            : ""
+        }`}>
           <div className="card-body">
             <div
               className="text-lg leading-relaxed font-mono cursor-text select-none"
@@ -508,6 +508,8 @@ export default function RaceView({
           value={currentWordProgress}
           onChange={(e) => void handleInputChange(e)}
           onKeyDown={handleKeyDown}
+          onFocus={() => setIsFocused(true)}
+          onBlur={() => setIsFocused(false)}
           className="absolute -left-[10000px] top-0 w-1 h-1"
           disabled={currentIdx === typingContent.length}
           autoFocus
@@ -515,13 +517,20 @@ export default function RaceView({
         />
 
         {/* Helpful hint */}
-        <div className="text-center text-sm opacity-70 mb-6">
+        <div className="text-center text-sm opacity-70 mb-4">
           {currentIdx === typingContent.length ? (
             <span className="text-success">Race completed! 🎉</span>
+          ) : !isFocused ? (
+            <span className="text-warning font-medium">
+              Click on the paragraph to continue typing
+            </span>
           ) : (
-            <span>Click on the paragraph above and start typing</span>
+            <span>Start typing to race!</span>
           )}
         </div>
+
+        {/* Special Character Hints */}
+        <SpecialCharacterHints text={typingContent} />
 
         {/* Progress Bars */}
         <div className="card bg-base-200">
