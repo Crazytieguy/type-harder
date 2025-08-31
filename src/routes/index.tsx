@@ -10,6 +10,13 @@ import { z } from "zod";
 import { api } from "../../convex/_generated/api";
 
 export const Route = createFileRoute("/")({
+  loader: async ({ context: { queryClient } }) => {
+    const activeRoomQueryOptions = convexQuery(api.games.getUserActiveRoom, {});
+    // Only load if authenticated to prevent crashes on page refresh
+    if ((window as any).Clerk?.session) {
+      await queryClient.ensureQueryData(activeRoomQueryOptions);
+    }
+  },
   component: HomePage,
 });
 

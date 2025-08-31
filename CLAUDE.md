@@ -113,6 +113,7 @@
 - Preload in route loaders: `loader: async ({ context: { queryClient } }) => await queryClient.ensureQueryData(queryOptions)`
 - Use `useSuspenseQuery` in components: `const { data } = useSuspenseQuery(queryOptions)`
 - For mutations, continue using Convex's `useMutation` directly
+- **When adding auth to a query** (`ctx.auth.getUserIdentity()`), update its loader: `if ((window as any).Clerk?.session) await queryClient.ensureQueryData(authQuery)` - otherwise the app crashes on page refresh
 
 ## TanStack Form + Zod v4
 

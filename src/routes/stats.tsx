@@ -10,7 +10,10 @@ import { usePaginatedQuery } from "convex/react";
 export const Route = createFileRoute("/stats")({
   loader: async ({ context: { queryClient } }) => {
     const statsQueryOptions = convexQuery(api.stats.getUserStats, {});
-    return await queryClient.ensureQueryData(statsQueryOptions);
+    // Only load if authenticated to prevent crashes on page refresh
+    if ((window as any).Clerk?.session) {
+      return await queryClient.ensureQueryData(statsQueryOptions);
+    }
   },
   component: StatsPage,
 });
