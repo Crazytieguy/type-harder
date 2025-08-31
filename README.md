@@ -15,9 +15,7 @@ A multiplayer typing race game using paragraphs from Eliezer Yudkowsky's "The Se
 src/
 ├── routes/          # TanStack Router pages
 │   ├── index.tsx    # Home - create/join rooms
-│   ├── room.$roomCode.tsx    # Game lobby with ready states
-│   ├── race.$roomCode.tsx    # Active race with word validation
-│   ├── results.$roomCode.tsx # Final rankings and statistics
+│   ├── room.$roomCode.tsx    # Game room (lobby, racing, and results)
 │   └── stats.tsx    # User statistics with paginated race history
 convex/
 ├── games.ts         # Room creation, joining, and race logic
@@ -25,7 +23,6 @@ convex/
 ├── stats.ts         # User statistics and race history queries
 ├── aggregates.ts    # O(1) random selection with Convex aggregates
 ├── dbHelpers.ts     # Encapsulated database operations with aggregate maintenance
-├── scraping.ts      # Node.js action for content fetching
-├── scrapingMutations.ts  # Database operations for content
-└── schema.ts        # Tables: sequences, gameRooms, players, roomMembers, scrapingProgress
+├── scraping.ts      # Content fetching and database operations
+└── schema.ts        # Tables: sequences, rooms, games, players, roomMembers, scrapingProgress
 ```

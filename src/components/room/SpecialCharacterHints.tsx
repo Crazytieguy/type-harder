@@ -9,25 +9,37 @@ type OS = "mac" | "windows" | "linux" | "unknown";
 
 const specialCharacters: Record<
   string,
-  { mac?: string; windows?: string; linux?: string; name: string }
+  { mac?: string; windows?: string; linux?: string; name: string; fallback?: string }
 > = {
+  "´": {
+    mac: "⌥e",
+    windows: "Alt+0180",
+    linux: "Compose ' '",
+    name: "´ (acute accent)",
+  },
+  "é": {
+    mac: "´e",
+    windows: "´e",
+    linux: "´e",
+    name: "é (type ´ then e)",
+  },
   "\u2026": {
-    mac: "⌥;",
-    windows: "Alt+0133",
-    linux: "Compose . .",
-    name: "Ellipsis",
+    mac: "...",
+    windows: "...",
+    linux: "...",
+    name: "… (type three dots)",
   },
   "\u2014": {
-    mac: "⌥⇧-",
-    windows: "Alt+0151",
-    linux: "Compose - - -",
-    name: "Em dash",
+    mac: "---",
+    windows: "---",
+    linux: "---",
+    name: "— (type three dashes)",
   },
   "\u2013": {
-    mac: "⌥-",
-    windows: "Alt+0150",
-    linux: "Compose - - .",
-    name: "En dash",
+    mac: "--",
+    windows: "--",
+    linux: "--",
+    name: "– (type two dashes)",
   },
   "\u201C": {
     mac: "⌥[",
@@ -54,22 +66,22 @@ const specialCharacters: Record<
     name: "Right single quote",
   },
   "\u2264": {
-    mac: "⌥,",
-    windows: "Alt+2264",
-    linux: "Compose < =",
-    name: "≤",
+    mac: "<=",
+    windows: "<=",
+    linux: "<=",
+    name: "≤ (type <=)",
   },
   "\u2265": {
-    mac: "⌥.",
-    windows: "Alt+2265",
-    linux: "Compose > =",
-    name: "≥",
+    mac: ">=",
+    windows: ">=",
+    linux: ">=",
+    name: "≥ (type >=)",
   },
   "\u2260": {
-    mac: "⌥=",
-    windows: "Alt+2260",
-    linux: "Compose / =",
-    name: "≠",
+    mac: "!=",
+    windows: "!=",
+    linux: "!=",
+    name: "≠ (type !=)",
   },
   "\u221E": {
     mac: "⌥5",
@@ -102,16 +114,16 @@ const specialCharacters: Record<
     name: "±",
   },
   "\u2192": {
-    mac: "⌥⇧→",
-    windows: "Alt+26",
-    linux: "Compose - >",
-    name: "→",
+    mac: "->",
+    windows: "->",
+    linux: "->",
+    name: "→ (type ->)",
   },
   "\u2190": {
-    mac: "⌥⇧←",
-    windows: "Alt+27",
-    linux: "Compose < -",
-    name: "←",
+    mac: "<-",
+    windows: "<-",
+    linux: "<-",
+    name: "← (type <-)",
   },
   "\u2194": {
     mac: "⌥⇧↑/↓",
@@ -200,10 +212,28 @@ export default function SpecialCharacterHints({
     setOS(detectOS());
   }, []);
 
-  // Find special characters in the text
-  const foundCharacters = Object.entries(specialCharacters).filter(
-    ([char]) => text.includes(char),
-  );
+  // Find special characters in the text and sort by order of appearance
+  // If é is in the text, also include ´ since it's needed to type é
+  const foundCharacters = Object.entries(specialCharacters)
+    .filter(([char]) => {
+      // Include the character if it's in the text
+      if (text.includes(char)) return true;
+      // Also include ´ if é is in the text (since you need ´ to type é)
+      if (char === "´" && text.includes("é")) return true;
+      return false;
+    })
+    .sort(([charA], [charB]) => {
+      // If one is ´ and the other is é, show ´ first
+      if (charA === "´" && charB === "é") return -1;
+      if (charA === "é" && charB === "´") return 1;
+      
+      const indexA = text.indexOf(charA);
+      const indexB = text.indexOf(charB);
+      // Handle characters that aren't in the text (like ´ when é is present)
+      if (indexA === -1) return 1;
+      if (indexB === -1) return -1;
+      return indexA - indexB;
+    });
 
   if (foundCharacters.length === 0) {
     return null;
@@ -211,12 +241,12 @@ export default function SpecialCharacterHints({
 
   return (
     <div className="card bg-base-200 mb-4">
-      <div className="card-body py-2 px-4">
-        <div className="flex items-start gap-2">
-          <Info className="w-4 h-4 text-info mt-0.5 flex-shrink-0" />
-          <div className="text-xs flex-1">
-            <div className="font-medium mb-1">Special characters:</div>
-            <div className="flex flex-wrap gap-x-4 gap-y-1">
+      <div className="card-body py-3 px-4">
+        <div className="flex items-start gap-3">
+          <Info className="w-5 h-5 text-info mt-0.5 flex-shrink-0" />
+          <div className="text-sm flex-1">
+            <div className="font-medium mb-2">Special characters:</div>
+            <div className="flex flex-wrap gap-x-6 gap-y-2">
               {foundCharacters.map(([char, hints]) => {
                 let shortcut = "";
                 if (os === "mac" && hints.mac) {
@@ -232,10 +262,17 @@ export default function SpecialCharacterHints({
                   else if (hints.linux) shortcut = hints.linux;
                 }
 
+                // Split shortcut into individual keys
+                const keys = shortcut.split(/(?=[+⇧⌥⌘])|(?<=[+⇧⌥⌘])/).filter(k => k && k !== '+');
+                
                 return (
-                  <div key={char} className="flex items-center gap-1 whitespace-nowrap">
-                    <span className="font-mono text-sm font-bold">{char}</span>
-                    <span className="text-primary opacity-90">{shortcut}</span>
+                  <div key={char} className="flex items-center gap-2 whitespace-nowrap">
+                    <span className="font-mono text-base font-bold">{char}</span>
+                    <div className="flex items-center gap-1">
+                      {keys.map((key, idx) => (
+                        <kbd key={idx} className="kbd kbd-sm font-sans">{key}</kbd>
+                      ))}
+                    </div>
                   </div>
                 );
               })}

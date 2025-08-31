@@ -10,7 +10,8 @@ import { hasGame } from "../types/room";
 export const Route = createFileRoute("/room/$roomCode")({
   loader: async ({ context: { queryClient }, params: { roomCode } }) => {
     const roomQueryOptions = convexQuery(api.games.getRoom, { roomCode });
-    return await queryClient.ensureQueryData(roomQueryOptions);
+    const data = await queryClient.ensureQueryData(roomQueryOptions);
+    return data;
   },
   component: RoomPage,
 });

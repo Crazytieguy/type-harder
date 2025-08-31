@@ -141,15 +141,7 @@ export const joinRoom = mutation({
     }
 
     // Check if there's an active game in this room
-    const activeGame = await ctx.db
-      .query("games")
-      .withIndex("by_room", (q) => q.eq("roomId", room._id))
-      .filter((q) => q.neq(q.field("status"), "finished"))
-      .first();
-
-    if (activeGame && activeGame.status === "playing") {
-      throw new ConvexError("Game has already started");
-    }
+    // Allow joining during a race as a spectator (no longer blocking)
 
     // Check if already in the room
     const existingMember = await ctx.db
@@ -230,6 +222,41 @@ export const leaveRoom = mutation({
     // Remove the membership first
     await ctx.db.delete(membership._id);
 
+    // Check if there's an active game and if we should end it
+    const activeGame = await ctx.db
+      .query("games")
+      .withIndex("by_room", (q) => q.eq("roomId", room._id))
+      .filter((q) => q.eq(q.field("status"), "playing"))
+      .unique();
+
+    if (activeGame) {
+      // Get all players in the game
+      const gamePlayers = await ctx.db
+        .query("players")
+        .withIndex("by_game", (q) => q.eq("gameId", activeGame._id))
+        .collect();
+
+      // Get remaining room members (after we've left)
+      const remainingMembers = await ctx.db
+        .query("roomMembers")
+        .withIndex("by_room", (q) => q.eq("roomId", room._id))
+        .collect();
+      
+      const remainingUserIds = new Set(remainingMembers.map(m => m.userId));
+      
+      // Check if all remaining players have finished
+      const allRemainingFinished = gamePlayers
+        .filter(p => remainingUserIds.has(p.userId))
+        .every(p => p.finishedAt !== undefined);
+
+      if (allRemainingFinished && remainingMembers.length > 0) {
+        // End the game if all remaining players have finished
+        await ctx.db.patch(activeGame._id, {
+          status: "finished",
+        });
+      }
+    }
+
     // If host is leaving, transfer host to another member
     if (room.hostId === user._id) {
       // Get all remaining members (after we've left)
@@ -307,6 +334,41 @@ export const kickPlayer = mutation({
 
     // Remove the membership
     await ctx.db.delete(membership._id);
+
+    // Check if there's an active game and if we should end it
+    const activeGame = await ctx.db
+      .query("games")
+      .withIndex("by_room", (q) => q.eq("roomId", room._id))
+      .filter((q) => q.eq(q.field("status"), "playing"))
+      .unique();
+
+    if (activeGame) {
+      // Get all players in the game
+      const gamePlayers = await ctx.db
+        .query("players")
+        .withIndex("by_game", (q) => q.eq("gameId", activeGame._id))
+        .collect();
+
+      // Get remaining room members (after kick)
+      const remainingMembers = await ctx.db
+        .query("roomMembers")
+        .withIndex("by_room", (q) => q.eq("roomId", room._id))
+        .collect();
+      
+      const remainingUserIds = new Set(remainingMembers.map(m => m.userId));
+      
+      // Check if all remaining players have finished
+      const allRemainingFinished = gamePlayers
+        .filter(p => remainingUserIds.has(p.userId))
+        .every(p => p.finishedAt !== undefined);
+
+      if (allRemainingFinished && remainingMembers.length > 0) {
+        // End the game if all remaining players have finished
+        await ctx.db.patch(activeGame._id, {
+          status: "finished",
+        });
+      }
+    }
 
     return { success: true };
   },
@@ -537,11 +599,16 @@ export const startGame = mutation({
       .withIndex("by_room", (q) => q.eq("roomId", room._id))
       .collect();
 
-    const allReady = roomMembers.every(
-      (m) => m.userId === room.hostId || m.isReady,
-    );
-    if (!allReady) {
-      throw new ConvexError("Not all players are ready");
+    // Allow solo races (when there's only one member who is also the host)
+    const isSoloRace = roomMembers.length === 1 && roomMembers[0].userId === room.hostId;
+    
+    if (!isSoloRace) {
+      const allReady = roomMembers.every(
+        (m) => m.userId === room.hostId || m.isReady,
+      );
+      if (!allReady) {
+        throw new ConvexError("Not all players are ready");
+      }
     }
 
     await ctx.db.patch(room._id, {
@@ -549,15 +616,13 @@ export const startGame = mutation({
       maxWordCount,
     });
 
-    // For now, fall back to the traditional approach until we figure out bounds
-    // TODO: Use aggregate for O(1) selection once bounds issue is resolved
-    const selectedParagraph = await getRandomParagraphInRange(
+    const selectedParagraphId = await getRandomParagraphInRange(
       ctx,
       minWordCount,
       maxWordCount
     );
 
-    if (!selectedParagraph) {
+    if (!selectedParagraphId) {
       throw new ConvexError(
         "No paragraphs available in the specified word count range. Please run the scraper first.",
       );
@@ -567,7 +632,7 @@ export const startGame = mutation({
     const gameId = await ctx.db.insert("games", {
       roomId: room._id,
       status: "playing",
-      selectedParagraphId: selectedParagraph._id,
+      selectedParagraphId,
       startTime: Date.now(),
     });
 
@@ -661,17 +726,28 @@ export const updateProgress = mutation({
       const wpm = Math.round((paragraph.wordCount / raceDuration) * 60);
       updates.wpm = wpm;
 
-      // Check if all players have finished
+      // Check if all players still in the room have finished
       const allPlayers = await ctx.db
         .query("players")
         .withIndex("by_game", (q) => q.eq("gameId", activeGame._id))
         .collect();
+      
+      // Get current room members to check who's still in the room
+      const currentRoomMembers = await ctx.db
+        .query("roomMembers")
+        .withIndex("by_room", (q) => q.eq("roomId", room._id))
+        .collect();
+      
+      const memberUserIds = new Set(currentRoomMembers.map(m => m.userId));
+      
+      // Check if all players still in the room have finished
+      const allRemainingFinished = allPlayers
+        .filter(p => memberUserIds.has(p.userId))
+        .every((p) =>
+          p._id === player._id ? true : p.finishedAt !== undefined,
+        );
 
-      const allFinished = allPlayers.every((p) =>
-        p._id === player._id ? true : p.finishedAt !== undefined,
-      );
-
-      if (allFinished) {
+      if (allRemainingFinished) {
         await ctx.db.patch(activeGame._id, {
           status: "finished",
         });

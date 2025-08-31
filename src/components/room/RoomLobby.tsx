@@ -7,7 +7,6 @@ import {
   Crown,
   LogOut,
   Settings,
-  UserX,
   Users,
 } from "lucide-react";
 import { useState } from "react";
@@ -17,6 +16,7 @@ import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 import type { Room } from "../../types/room";
 import DualRangeSlider from "../ui/DualRangeSlider";
+import KickButton from "../ui/KickButton";
 
 const wordCountSchema = z
   .object({
@@ -74,6 +74,7 @@ export default function RoomLobby({
   const currentMember = room.members.find(
     (m) => m.userId === room.currentUserId,
   );
+  const isSoloRoom = room.members.length === 1 && isHost;
   const allReady = room.members.every(
     (m) => m.userId === room.hostId || m.isReady,
   );
@@ -176,13 +177,10 @@ export default function RoomLobby({
                         </>
                       ))}
                     {isHost && member.userId !== room.hostId && (
-                      <button
-                        className="btn btn-ghost btn-xs"
+                      <KickButton
                         onClick={() => void handleKickPlayer(member.userId)}
-                        title="Kick player"
-                      >
-                        <UserX className="w-4 h-4" />
-                      </button>
+                        size="sm"
+                      />
                     )}
                   </div>
                 </div>
@@ -283,13 +281,12 @@ export default function RoomLobby({
                   form="game-settings-form"
                   className="btn btn-success"
                   disabled={
-                    !allReady ||
-                    room.members.length < 2 ||
+                    (!allReady && !isSoloRoom) ||
                     !wordCountForm.state.canSubmit ||
                     wordCountForm.state.isSubmitting
                   }
                 >
-                  Start Game
+                  {isSoloRoom ? "Start Solo Race" : "Start Game"}
                 </button>
               )}
 
@@ -304,15 +301,15 @@ export default function RoomLobby({
               )}
             </div>
 
-            {isHost && !allReady && (
+            {isHost && !allReady && !isSoloRoom && (
               <p className="text-center text-sm opacity-70 mt-2">
                 Waiting for other players to be ready
               </p>
             )}
 
-            {isHost && room.members.length < 2 && (
+            {isSoloRoom && (
               <p className="text-center text-sm opacity-70 mt-2">
-                Need at least 2 players to start
+                Ready to start your solo race!
               </p>
             )}
           </div>

@@ -1,6 +1,7 @@
 import { ConvexError, v } from "convex/values";
-import { internalAction } from "./_generated/server";
 import { internal } from "./_generated/api";
+import { internalAction, internalMutation, internalQuery } from "./_generated/server";
+import { insertSequence } from "./dbHelpers";
 
 export const scrapeSequences = internalAction({
   args: {
@@ -36,7 +37,7 @@ export const scrapeSequences = internalAction({
       try {
         // Check if already processed
         const existingProgress = await ctx.runQuery(
-          internal.scrapingQueries.getScrapingProgress,
+          internal.scraping.getScrapingProgress,
           { url },
         );
 
@@ -47,64 +48,18 @@ export const scrapeSequences = internalAction({
 
         // Mark as processing
         await ctx.runMutation(
-          internal.scrapingMutations.updateScrapingProgress,
+          internal.scraping.updateScrapingProgress,
           {
             url,
             status: "processing",
           },
         );
 
-        // Fetch the article content
-        let articleResponse = await fetch(`${url}?action=markdown`);
+        // Fetch the article content with redirect handling
+        const { markdown: articleMarkdown, finalUrl } = await fetchArticleWithRedirect(url);
 
-        if (!articleResponse.ok) {
-          throw new Error(`Failed to fetch article: ${url}`);
-        }
-
-        let articleMarkdown = await articleResponse.text();
-        let finalUrl = url;
-
-        // Extract article title and paragraphs, handling redirects
-        let title: string;
-        let paragraphs: string[];
-
-        try {
-          const result = extractArticleContent(articleMarkdown);
-          title = result.title;
-          paragraphs = result.paragraphs;
-        } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : "";
-
-          // Check if this is a redirect
-          if (errorMessage.startsWith("REDIRECT:")) {
-            const redirectPath = errorMessage.replace("REDIRECT:", "");
-            const redirectUrl = `https://www.readthesequences.com/${redirectPath}`;
-
-            console.log(
-              `   ↪️  Following redirect from ${url} to ${redirectUrl}`,
-            );
-
-            // Fetch the redirect target
-            articleResponse = await fetch(`${redirectUrl}?action=markdown`);
-
-            if (!articleResponse.ok) {
-              throw new Error(
-                `Failed to fetch redirect target: ${redirectUrl}`,
-              );
-            }
-
-            articleMarkdown = await articleResponse.text();
-            finalUrl = redirectUrl;
-
-            // Try parsing again
-            const result = extractArticleContent(articleMarkdown);
-            title = result.title;
-            paragraphs = result.paragraphs;
-          } else {
-            // Re-throw if not a redirect
-            throw error;
-          }
-        }
+        // Extract article title and paragraphs
+        const { title, paragraphs } = extractArticleContent(articleMarkdown);
 
         // Save paragraphs to database
         for (let i = 0; i < paragraphs.length; i++) {
@@ -112,7 +67,7 @@ export const scrapeSequences = internalAction({
           const wordCount = countWords(paragraph);
 
           // Save all paragraphs (filtering can be done later when selecting)
-          await ctx.runMutation(internal.scrapingMutations.saveParagraph, {
+          await ctx.runMutation(internal.scraping.saveParagraph, {
             content: paragraph,
             bookTitle,
             sequenceTitle,
@@ -125,7 +80,7 @@ export const scrapeSequences = internalAction({
 
         // Mark as completed
         await ctx.runMutation(
-          internal.scrapingMutations.updateScrapingProgress,
+          internal.scraping.updateScrapingProgress,
           {
             url,
             status: "completed",
@@ -151,15 +106,8 @@ export const scrapeSequences = internalAction({
           console.error(`   Stack: ${error.stack.split("\n")[0]}`);
         }
 
-        // Special handling for known error types
-        if (errorMessage.includes("Failed to fetch redirect target")) {
-          console.log(
-            `   ℹ️  Failed to follow redirect - target page may not exist`,
-          );
-        }
-
         await ctx.runMutation(
-          internal.scrapingMutations.updateScrapingProgress,
+          internal.scraping.updateScrapingProgress,
           {
             url,
             status: "failed",
@@ -235,30 +183,67 @@ function extractArticleUrls(
   return urls;
 }
 
+async function fetchArticleWithRedirect(url: string): Promise<{
+  markdown: string;
+  finalUrl: string;
+}> {
+  let articleResponse = await fetch(`${url}?action=markdown`);
+  
+  if (!articleResponse.ok) {
+    throw new Error(`Failed to fetch article: ${url}`);
+  }
+  
+  let articleMarkdown = await articleResponse.text();
+  let finalUrl = url;
+  
+  // Check if this is a redirect
+  const redirectMatch = articleMarkdown.match(
+    /\(:redirect\s+([^\s]+)\s+quiet=1\s*:\)/,
+  );
+  
+  if (redirectMatch) {
+    // Extract the redirect target (e.g., "Main.Focus-Your-Uncertainty")
+    const redirectTarget = redirectMatch[1];
+    // Convert format: Main.Focus-Your-Uncertainty -> Focus-Your-Uncertainty
+    const redirectPath = redirectTarget.replace("Main.", "");
+    const redirectUrl = `https://www.readthesequences.com/${redirectPath}`;
+    
+    console.log(`   ↪️  Following redirect from ${url} to ${redirectUrl}`);
+    
+    // Fetch the redirect target
+    articleResponse = await fetch(`${redirectUrl}?action=markdown`);
+    
+    if (!articleResponse.ok) {
+      throw new Error(`Failed to fetch redirect target: ${redirectUrl}`);
+    }
+    
+    articleMarkdown = await articleResponse.text();
+    finalUrl = redirectUrl;
+  }
+  
+  return { markdown: articleMarkdown, finalUrl };
+}
+
 function extractArticleContent(markdown: string): {
   title: string;
   paragraphs: string[];
 } {
   const lines = markdown.split("\n");
 
-  // Check for redirect pages and extract the redirect target
-  const redirectMatch = markdown.match(
-    /\(:redirect\s+([^\s]+)\s+quiet=1\s*:\)/,
-  );
-  if (redirectMatch) {
-    // Extract the redirect target (e.g., "Main.Focus-Your-Uncertainty")
-    const redirectTarget = redirectMatch[1];
-    // Convert format: Main.Focus-Your-Uncertainty -> Focus-Your-Uncertainty
-    const redirectPath = redirectTarget.replace("Main.", "");
-    throw new Error(`REDIRECT:${redirectPath}`);
-  }
-
   // Step 1: Extract all reference links from the bottom
   const linkRefs: { [key: string]: string } = {};
   for (const line of lines) {
-    const refMatch = line.match(/^\s*\[(\d+)\]:\s+(https?:\/\/[^\s]+)/);
+    // Match both external URLs and internal anchors
+    const refMatch = line.match(/^\s*\[(\d+)\]:\s+([#\w][\w:/.\-?=&#]*)/);
     if (refMatch) {
-      linkRefs[refMatch[1]] = refMatch[2];
+      // If it's an internal anchor, convert to full URL
+      if (refMatch[2].startsWith('#')) {
+        // For internal footnotes, we'll just remove them from typing
+        // but keep them in display without a link
+        linkRefs[refMatch[1]] = refMatch[2];
+      } else {
+        linkRefs[refMatch[1]] = refMatch[2];
+      }
     }
   }
 
@@ -404,14 +389,29 @@ function substituteLinks(
   text: string,
   linkRefs: { [key: string]: string },
 ): string {
-  // Replace [text][number] with [text](url)
-  return text.replace(/\[([^\]]+)\]\[(\d+)\]/g, (match, linkText, refNum) => {
+  // First, replace [text][number] with [text](url) for regular links
+  text = text.replace(/\[([^\]]+)\]\[(\d+)\]/g, (_match, linkText, refNum) => {
     const url = linkRefs[refNum];
-    if (url) {
+    if (url && !url.startsWith('#')) {
       return `[${linkText}](${url})`;
     }
-    return match; // Keep original if no reference found
+    // For internal anchors or missing refs, just return the text without the reference
+    return linkText;
   });
+  
+  // Then, handle standalone [number] footnotes
+  text = text.replace(/\[(\d+)\]/g, (match, refNum) => {
+    const url = linkRefs[refNum];
+    if (url && !url.startsWith('#')) {
+      // External URL - create a link
+      return `[${refNum}](${url})`;
+    }
+    // For internal anchors, just keep the footnote marker without a link
+    // It will be removed from typing but shown in display
+    return match;
+  });
+  
+  return text;
 }
 
 function cleanParagraph(paragraph: string): string {
@@ -436,6 +436,8 @@ function countWords(text: string): number {
   const plainText = text
     // Remove links: [text](url) -> text
     .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    // Remove footnote references: [1], [2], etc.
+    .replace(/\[\d+\]/g, "")
     // Remove bold: **text** -> text
     .replace(/\*\*([^*]+)\*\*/g, "$1")
     // Remove italic: *text* -> text (but not ** patterns)
@@ -446,3 +448,234 @@ function countWords(text: string): number {
     .split(/\s+/)
     .filter((word) => word.length > 0).length;
 }
+
+// Internal queries
+export const getScrapingProgress = internalQuery({
+  args: {
+    url: v.string(),
+  },
+  handler: async (ctx, { url }) => {
+    return await ctx.db
+      .query("scrapingProgress")
+      .withIndex("by_url", (q) => q.eq("url", url))
+      .unique();
+  },
+});
+
+// Internal mutations
+export const saveParagraph = internalMutation({
+  args: {
+    content: v.string(),
+    bookTitle: v.string(),
+    sequenceTitle: v.string(),
+    articleTitle: v.string(),
+    articleUrl: v.string(),
+    paragraphIndex: v.number(),
+    wordCount: v.number(),
+  },
+  handler: async (ctx, args) => {
+    await insertSequence(ctx, args);
+  },
+});
+
+// Mutation to update existing paragraph or create new one
+export const updateOrCreateParagraph = internalMutation({
+  args: {
+    existingId: v.optional(v.id("sequences")),
+    content: v.string(),
+    bookTitle: v.string(),
+    sequenceTitle: v.string(),
+    articleTitle: v.string(),
+    articleUrl: v.string(),
+    paragraphIndex: v.number(),
+    wordCount: v.number(),
+  },
+  handler: async (ctx, { existingId, ...data }) => {
+    if (existingId) {
+      // Update existing document
+      await ctx.db.replace(existingId, data);
+    } else {
+      // Create new document
+      await insertSequence(ctx, data);
+    }
+  },
+});
+
+// Mutation to delete a paragraph
+export const deleteParagraph = internalMutation({
+  args: {
+    id: v.id("sequences"),
+  },
+  handler: async (ctx, { id }) => {
+    await ctx.db.delete(id);
+  },
+});
+
+export const updateScrapingProgress = internalMutation({
+  args: {
+    url: v.string(),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("processing"),
+      v.literal("completed"),
+      v.literal("failed"),
+    ),
+    errorMessage: v.optional(v.string()),
+  },
+  handler: async (ctx, { url, status, errorMessage }) => {
+    const existing = await ctx.db
+      .query("scrapingProgress")
+      .withIndex("by_url", (q) => q.eq("url", url))
+      .unique();
+
+    const data = {
+      url,
+      status,
+      lastProcessedAt: Date.now(),
+      errorMessage,
+    };
+
+    if (existing) {
+      await ctx.db.patch(existing._id, data);
+    } else {
+      await ctx.db.insert("scrapingProgress", data);
+    }
+  },
+});
+
+// Public mutation to rescrape a specific article
+export const rescrapeArticle = internalMutation({
+  args: {
+    articleTitle: v.string(),
+  },
+  handler: async (ctx, { articleTitle }) => {
+    // Find existing paragraphs from this article
+    const existingParagraphs = await ctx.db
+      .query("sequences")
+      .withIndex("by_articleTitle", (q) => q.eq("articleTitle", articleTitle))
+      .collect();
+    
+    if (existingParagraphs.length === 0) {
+      throw new ConvexError(`Article "${articleTitle}" not found`);
+    }
+    
+    // Get the article URL from the first paragraph
+    const articleUrl = existingParagraphs[0].articleUrl;
+    const bookTitle = existingParagraphs[0].bookTitle;
+    const sequenceTitle = existingParagraphs[0].sequenceTitle;
+    
+    // Reset scraping progress for this URL
+    const progress = await ctx.db
+      .query("scrapingProgress")
+      .withIndex("by_url", (q) => q.eq("url", articleUrl))
+      .unique();
+    
+    if (progress) {
+      await ctx.db.patch(progress._id, { status: "pending" });
+    }
+    
+    // Store existing paragraph IDs by index for reuse
+    const existingIdsByIndex = Object.fromEntries(
+      existingParagraphs.map(p => [p.paragraphIndex, p._id])
+    );
+    
+    console.log(`Found ${existingParagraphs.length} existing paragraphs from "${articleTitle}"`);
+    
+    // Trigger rescraping by calling the action
+    await ctx.scheduler.runAfter(0, internal.scraping.rescrapeArticleAction, {
+      url: articleUrl,
+      bookTitle,
+      sequenceTitle,
+      existingIdsByIndex,
+    });
+    
+    return { 
+      message: `Rescraping "${articleTitle}" scheduled`, 
+      deletedCount: existingParagraphs.length 
+    };
+  },
+});
+
+// Internal action to rescrape a single article
+export const rescrapeArticleAction = internalAction({
+  args: {
+    url: v.string(),
+    bookTitle: v.string(),
+    sequenceTitle: v.string(),
+    existingIdsByIndex: v.optional(v.record(v.string(), v.id("sequences"))),
+  },
+  handler: async (ctx, { url, bookTitle, sequenceTitle, existingIdsByIndex }) => {
+    console.log(`Rescraping article: ${url}`);
+    
+    try {
+      // Mark as processing
+      await ctx.runMutation(internal.scraping.updateScrapingProgress, {
+        url,
+        status: "processing",
+      });
+      
+      // Fetch the article content with redirect handling
+      const { markdown: articleMarkdown, finalUrl } = await fetchArticleWithRedirect(url);
+      
+      // Extract article title and paragraphs
+      const { title, paragraphs } = extractArticleContent(articleMarkdown);
+      
+      // Track which existing paragraphs were updated
+      const processedIndices = new Set<number>();
+      
+      // Save paragraphs to database
+      for (let i = 0; i < paragraphs.length; i++) {
+        const paragraph = paragraphs[i];
+        const wordCount = countWords(paragraph);
+        
+        // Check if we have an existing ID for this index
+        const existingId = existingIdsByIndex?.[String(i)];
+        
+        await ctx.runMutation(internal.scraping.updateOrCreateParagraph, {
+          existingId,
+          content: paragraph,
+          bookTitle,
+          sequenceTitle,
+          articleTitle: title,
+          articleUrl: finalUrl,
+          paragraphIndex: i,
+          wordCount,
+        });
+        
+        processedIndices.add(i);
+      }
+      
+      // Delete any existing paragraphs that weren't updated (e.g., if article got shorter)
+      if (existingIdsByIndex) {
+        for (const [index, id] of Object.entries(existingIdsByIndex)) {
+          if (!processedIndices.has(Number(index))) {
+            await ctx.runMutation(internal.scraping.deleteParagraph, {
+              id,
+            });
+          }
+        }
+      }
+      
+      // Mark as completed
+      await ctx.runMutation(internal.scraping.updateScrapingProgress, {
+        url,
+        status: "completed",
+      });
+      
+      console.log(`Successfully rescraped "${title}" with ${paragraphs.length} paragraphs`);
+      return { success: true, paragraphCount: paragraphs.length };
+      
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      console.error(`Failed to rescrape ${url}: ${errorMessage}`);
+      
+      await ctx.runMutation(internal.scraping.updateScrapingProgress, {
+        url,
+        status: "failed",
+        errorMessage,
+      });
+      
+      throw error;
+    }
+  },
+});

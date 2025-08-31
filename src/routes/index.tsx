@@ -1,7 +1,9 @@
 import { SignInButton } from "@clerk/clerk-react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useForm } from "@tanstack/react-form";
-import { Authenticated, Unauthenticated, useMutation, useQuery } from "convex/react";
+import { Authenticated, Unauthenticated, useMutation } from "convex/react";
+import { convexQuery } from "@convex-dev/react-query";
+import { useSuspenseQuery } from "@tanstack/react-query";
 import { Keyboard, LogIn } from "lucide-react";
 import { useState } from "react";
 import { z } from "zod";
@@ -51,7 +53,7 @@ function GameOptions() {
   const navigate = useNavigate();
   const createRoom = useMutation(api.games.createRoom);
   const joinRoomMutation = useMutation(api.games.joinRoom);
-  const activeRoom = useQuery(api.games.getUserActiveRoom);
+  const { data: activeRoom } = useSuspenseQuery(convexQuery(api.games.getUserActiveRoom, {}));
   const [isCreating, setIsCreating] = useState(false);
   const [isJoining, setIsJoining] = useState(false);
   const [error, setError] = useState("");
@@ -72,7 +74,8 @@ function GameOptions() {
           to: "/room/$roomCode",
           params: { roomCode: value.roomCode },
         });
-      } catch {
+      } catch (error) {
+        console.error("Join room failed:", error);
         setError("Room not found or game already started");
         setIsJoining(false);
       }

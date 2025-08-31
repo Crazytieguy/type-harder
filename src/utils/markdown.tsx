@@ -11,8 +11,19 @@ export type Token =
 export const tokenizeMarkdown = (text: string): Token[] => {
   const tokens: Token[] = [];
   let pos = 0;
+  let loopCount = 0;
+  const maxLoops = 10000; // Prevent infinite loops
 
   while (pos < text.length) {
+    loopCount++;
+    if (loopCount > maxLoops) {
+      console.error("Infinite loop detected in tokenizeMarkdown!", {
+        pos,
+        textLength: text.length,
+        lastChars: text.substring(pos, pos + 20)
+      });
+      break;
+    }
     // Check for bold
     if (text.substring(pos).startsWith("**")) {
       const endIndex = text.indexOf("**", pos + 2);
@@ -49,7 +60,7 @@ export const tokenizeMarkdown = (text: string): Token[] => {
     // Check for link
     if (text.substring(pos).startsWith("[")) {
       const linkEndIndex = text.indexOf("](", pos);
-      if (linkEndIndex !== -1) {
+      if (linkEndIndex !== -1 && linkEndIndex > pos) {
         const urlEndIndex = text.indexOf(")", linkEndIndex);
         if (urlEndIndex !== -1) {
           const linkText = text.substring(pos + 1, linkEndIndex);
@@ -64,6 +75,8 @@ export const tokenizeMarkdown = (text: string): Token[] => {
           continue;
         }
       }
+      // Not a link, just a bracket (like a footnote [2])
+      // Treat it as regular text
     }
 
     // Regular text - find the next formatting marker
@@ -71,8 +84,8 @@ export const tokenizeMarkdown = (text: string): Token[] => {
     while (
       endPos < text.length &&
       !text.substring(endPos).startsWith("**") &&
-      !text.substring(endPos).startsWith("*") &&
-      !text.substring(endPos).startsWith("[")
+      !(text.substring(endPos).startsWith("*") && !text.substring(endPos).startsWith("**")) &&
+      !(text.substring(endPos).startsWith("[") && text.indexOf("](", endPos) > endPos)
     ) {
       endPos++;
     }
@@ -84,6 +97,15 @@ export const tokenizeMarkdown = (text: string): Token[] => {
         content,
       });
       pos = endPos;
+    } else {
+      // If no progress was made, we have an unhandled character
+      // Skip it to prevent infinite loop
+      console.warn("Unhandled character in tokenizeMarkdown at position", pos, "char:", text[pos]);
+      tokens.push({
+        type: "text",
+        content: text[pos],
+      });
+      pos++;
     }
   }
 

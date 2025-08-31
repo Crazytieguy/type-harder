@@ -42,7 +42,7 @@ export async function getRandomParagraphInRange(
     return null;
   }
   
-  return await ctx.db.get(result.id);
+  return result.id;
 }
 
 export const playerStatsByUser = new TableAggregate<{

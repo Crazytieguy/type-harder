@@ -20,7 +20,8 @@ export default defineSchema({
     wordCount: v.number(),
   })
     .index("by_book", ["bookTitle"])
-    .index("by_random", ["wordCount"]), // For random selection with word count filtering
+    .index("by_random", ["wordCount"]) // For random selection with word count filtering
+    .index("by_articleTitle", ["articleTitle"]), // For rescraping specific articles
 
   rooms: defineTable({
     roomCode: v.string(),
