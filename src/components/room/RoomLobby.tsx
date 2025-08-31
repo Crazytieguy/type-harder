@@ -17,6 +17,7 @@ import type { Id } from "../../../convex/_generated/dataModel";
 import type { Room } from "../../types/room";
 import DualRangeSlider from "../ui/DualRangeSlider";
 import KickButton from "../ui/KickButton";
+import ParagraphSelector from "./ParagraphSelector";
 
 const wordCountSchema = z
   .object({
@@ -42,6 +43,7 @@ export default function RoomLobby({
   room: { roomCode, ...room },
 }: RoomLobbyProps) {
   const [copied, setCopied] = useState(false);
+  const [selectedParagraphId, setSelectedParagraphId] = useState<Id<"sequences"> | null>(null);
   const toggleReady = useMutation(api.games.toggleReady);
   const startGame = useMutation(api.games.startGame);
   const joinRoom = useMutation(api.games.joinRoom);
@@ -63,6 +65,7 @@ export default function RoomLobby({
           roomCode,
           minWordCount: value.minWordCount,
           maxWordCount: value.maxWordCount,
+          specificParagraphId: selectedParagraphId || undefined,
         });
       } catch (err) {
         console.error("Failed to start game:", err);
@@ -201,11 +204,20 @@ export default function RoomLobby({
                 <div className="p-4 bg-base-100 rounded-lg">
                   <h3 className="flex items-center gap-2 font-medium mb-3">
                     <Settings className="w-4 h-4" />
-                    Word Count Range
+                    Paragraph Selection
                   </h3>
-                  <div className="space-y-4">
-                    <div>
-                      <div className="px-2 mt-8">
+                  <ParagraphSelector
+                    selectedParagraphId={selectedParagraphId}
+                    onSelectParagraph={setSelectedParagraphId}
+                    minWordCount={wordCountForm.state.values.minWordCount}
+                    maxWordCount={wordCountForm.state.values.maxWordCount}
+                  />
+                  
+                  {/* Word count range for random mode */}
+                  {!selectedParagraphId && (
+                    <div className="mt-4 p-3 bg-base-200 rounded-lg">
+                      <div className="text-sm font-medium mb-2">Word Count Range for Random</div>
+                      <div className="px-2 mt-4">
                         <wordCountForm.Field name="minWordCount">
                           {(minField) => (
                             <wordCountForm.Field name="maxWordCount">
@@ -251,7 +263,7 @@ export default function RoomLobby({
                         </div>
                       </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               </form>
             )}

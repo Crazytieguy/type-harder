@@ -1,5 +1,5 @@
 import { ConvexError, v } from "convex/values";
-import { Doc } from "./_generated/dataModel";
+import { Doc, Id } from "./_generated/dataModel";
 import { mutation, query } from "./_generated/server";
 import { getRandomParagraphInRange } from "./aggregates";
 import { insertPlayer, updatePlayer } from "./dbHelpers";
@@ -551,8 +551,9 @@ export const startGame = mutation({
     roomCode: v.string(),
     minWordCount: v.optional(v.number()),
     maxWordCount: v.optional(v.number()),
+    specificParagraphId: v.optional(v.id("sequences")),
   },
-  handler: async (ctx, { roomCode, minWordCount = 50, maxWordCount = 150 }) => {
+  handler: async (ctx, { roomCode, minWordCount = 50, maxWordCount = 150, specificParagraphId }) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
       throw new ConvexError("Not authenticated");
@@ -616,16 +617,29 @@ export const startGame = mutation({
       maxWordCount,
     });
 
-    const selectedParagraphId = await getRandomParagraphInRange(
-      ctx,
-      minWordCount,
-      maxWordCount
-    );
-
-    if (!selectedParagraphId) {
-      throw new ConvexError(
-        "No paragraphs available in the specified word count range. Please run the scraper first.",
+    // Use specific paragraph if provided, otherwise select random
+    let selectedParagraphId: Id<"sequences"> | null = null;
+    
+    if (specificParagraphId) {
+      // Verify the paragraph exists
+      const paragraph = await ctx.db.get(specificParagraphId);
+      if (!paragraph) {
+        throw new ConvexError("Selected paragraph not found");
+      }
+      selectedParagraphId = specificParagraphId;
+    } else {
+      // Random selection within word count range
+      selectedParagraphId = await getRandomParagraphInRange(
+        ctx,
+        minWordCount,
+        maxWordCount
       );
+
+      if (!selectedParagraphId) {
+        throw new ConvexError(
+          "No paragraphs available in the specified word count range. Please run the scraper first.",
+        );
+      }
     }
 
     // Create a new game
