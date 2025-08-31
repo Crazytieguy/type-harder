@@ -44,13 +44,13 @@ function StatsPage() {
     <div className="max-w-6xl mx-auto">
       <div className="text-center mb-8">
         <h1>Personal Statistics</h1>
-        <div className="flex items-center justify-center gap-3 mt-4">
+        <div className="flex flex-col items-center gap-1 mt-4 not-prose">
           {user.avatarUrl && (
-            <div className="avatar">
-              <div className="w-12 rounded-full overflow-hidden">
-                <img src={user.avatarUrl} alt={user.name} />
-              </div>
-            </div>
+            <img 
+              src={user.avatarUrl} 
+              alt={user.name}
+              className="w-16 h-16 rounded-full object-cover"
+            />
           )}
           <p className="text-xl opacity-70">{user.name}</p>
         </div>
