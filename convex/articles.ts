@@ -44,6 +44,8 @@ export const getArticles = query({
       sequenceTitle: string;
       articleTitle: string;
       articleUrl: string;
+      articleOrder: number;
+      sequenceOrder: number;
       paragraphs: Array<{
         _id: Id<"sequences">;
         paragraphIndex: number;
@@ -59,6 +61,8 @@ export const getArticles = query({
           sequenceTitle: seq.sequenceTitle,
           articleTitle: seq.articleTitle,
           articleUrl: seq.articleUrl,
+          articleOrder: seq.articleOrder,
+          sequenceOrder: seq.sequenceOrder,
           paragraphs: [],
         });
       }
@@ -85,12 +89,8 @@ export const getArticles = query({
       };
     });
 
-    // Sort articles by book, sequence, then article title
-    articles.sort((a, b) => {
-      if (a.bookTitle !== b.bookTitle) return a.bookTitle.localeCompare(b.bookTitle);
-      if (a.sequenceTitle !== b.sequenceTitle) return a.sequenceTitle.localeCompare(b.sequenceTitle);
-      return a.articleTitle.localeCompare(b.articleTitle);
-    });
+    // Sort articles by original readthesequences.com order
+    articles.sort((a, b) => a.articleOrder - b.articleOrder);
 
     return {
       articles,
@@ -211,11 +211,9 @@ export const getNextUncompletedParagraph = query({
     // Get all sequences and find the first uncompleted one
     const allSequences = await ctx.db.query("sequences").collect();
     
-    // Sort by book, sequence, article, then paragraph index for consistent ordering
+    // Sort by original readthesequences.com order
     allSequences.sort((a, b) => {
-      if (a.bookTitle !== b.bookTitle) return a.bookTitle.localeCompare(b.bookTitle);
-      if (a.sequenceTitle !== b.sequenceTitle) return a.sequenceTitle.localeCompare(b.sequenceTitle);
-      if (a.articleTitle !== b.articleTitle) return a.articleTitle.localeCompare(b.articleTitle);
+      if (a.articleOrder !== b.articleOrder) return a.articleOrder - b.articleOrder;
       return a.paragraphIndex - b.paragraphIndex;
     });
 

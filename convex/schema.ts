@@ -18,10 +18,13 @@ export default defineSchema({
     articleUrl: v.string(),
     paragraphIndex: v.number(),
     wordCount: v.number(),
+    articleOrder: v.number(), // Global article order from readthesequences.com
+    sequenceOrder: v.number(), // Order within the sequence
   })
     .index("by_book", ["bookTitle"])
     .index("by_random", ["wordCount"]) // For random selection with word count filtering
-    .index("by_articleTitle", ["articleTitle"]), // For rescraping specific articles
+    .index("by_articleTitle", ["articleTitle"]) // For rescraping specific articles
+    .index("by_order", ["articleOrder", "paragraphIndex"]), // For sequential progression
 
   rooms: defineTable({
     roomCode: v.string(),

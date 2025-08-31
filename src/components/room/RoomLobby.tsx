@@ -209,8 +209,6 @@ export default function RoomLobby({
                   <ParagraphSelector
                     selectedParagraphId={selectedParagraphId}
                     onSelectParagraph={setSelectedParagraphId}
-                    minWordCount={wordCountForm.state.values.minWordCount}
-                    maxWordCount={wordCountForm.state.values.maxWordCount}
                   />
                   
                   {/* Word count range for random mode */}

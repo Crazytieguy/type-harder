@@ -7,15 +7,11 @@ import type { Id } from "../../../convex/_generated/dataModel";
 interface ParagraphSelectorProps {
   selectedParagraphId: Id<"sequences"> | null;
   onSelectParagraph: (paragraphId: Id<"sequences"> | null) => void;
-  minWordCount: number;
-  maxWordCount: number;
 }
 
 export default function ParagraphSelector({
   selectedParagraphId,
   onSelectParagraph,
-  minWordCount,
-  maxWordCount,
 }: ParagraphSelectorProps) {
   const [mode, setMode] = useState<"random" | "select">("random");
   const [selectedArticle, setSelectedArticle] = useState<string | null>(null);
@@ -44,10 +40,6 @@ export default function ParagraphSelector({
     if (newMode === "random") {
       onSelectParagraph(null);
       setSelectedArticle(null);
-    } else if (newMode === "select" && nextUncompleted) {
-      // Auto-select next uncompleted when switching to select mode
-      onSelectParagraph(nextUncompleted.paragraphId);
-      setSelectedArticle(nextUncompleted.paragraph.articleTitle);
     }
   };
 
@@ -68,13 +60,15 @@ export default function ParagraphSelector({
       {/* Mode Selector */}
       <div className="flex gap-2">
         <button
+          type="button"
           onClick={() => handleModeChange("random")}
           className={`btn btn-sm flex-1 ${mode === "random" ? "btn-primary" : "btn-outline"}`}
         >
           <Shuffle className="w-4 h-4" />
-          Random ({minWordCount}-{maxWordCount} words)
+          Random
         </button>
         <button
+          type="button"
           onClick={() => handleModeChange("select")}
           className={`btn btn-sm flex-1 ${mode === "select" ? "btn-primary" : "btn-outline"}`}
         >
@@ -86,6 +80,7 @@ export default function ParagraphSelector({
       {/* Next Uncompleted Button - Always visible when available */}
       {nextUncompleted && (
         <button
+          type="button"
           onClick={handleNextUncompleted}
           className="btn btn-success btn-sm w-full"
         >
@@ -139,6 +134,7 @@ export default function ParagraphSelector({
                 <div className="flex justify-between items-center">
                   <h4 className="font-medium text-sm">{selectedArticle}</h4>
                   <button
+                    type="button"
                     onClick={() => setExpandedArticle(false)}
                     className="btn btn-ghost btn-xs"
                   >
@@ -150,6 +146,7 @@ export default function ParagraphSelector({
                   {articleParagraphs.paragraphs.map((para) => (
                     <button
                       key={para._id}
+                      type="button"
                       onClick={() => onSelectParagraph(para._id)}
                       className={`btn btn-sm w-full justify-start ${
                         selectedParagraphId === para._id

@@ -31,9 +31,15 @@ export const scrapeSequences = internalAction({
 
     let successCount = 0;
     let errorCount = 0;
+    let globalArticleOrder = 0;
+    const sequenceArticleCounts = new Map<string, number>();
 
     // Process each article
     for (const { url, bookTitle, sequenceTitle } of urlsToProcess) {
+      // Track order within sequence
+      const sequenceKey = `${bookTitle}|${sequenceTitle}`;
+      const sequenceOrder = (sequenceArticleCounts.get(sequenceKey) || 0) + 1;
+      sequenceArticleCounts.set(sequenceKey, sequenceOrder);
       try {
         // Check if already processed
         const existingProgress = await ctx.runQuery(
@@ -43,8 +49,11 @@ export const scrapeSequences = internalAction({
 
         if (existingProgress?.status === "completed") {
           console.log(`Skipping already processed: ${url}`);
+          globalArticleOrder++;
           continue;
         }
+        
+        globalArticleOrder++;
 
         // Mark as processing
         await ctx.runMutation(
@@ -75,6 +84,8 @@ export const scrapeSequences = internalAction({
             articleUrl: finalUrl,
             paragraphIndex: i,
             wordCount,
+            articleOrder: globalArticleOrder,
+            sequenceOrder,
           });
         }
 
@@ -472,6 +483,8 @@ export const saveParagraph = internalMutation({
     articleUrl: v.string(),
     paragraphIndex: v.number(),
     wordCount: v.number(),
+    articleOrder: v.number(),
+    sequenceOrder: v.number(),
   },
   handler: async (ctx, args) => {
     await insertSequence(ctx, args);
@@ -489,6 +502,8 @@ export const updateOrCreateParagraph = internalMutation({
     articleUrl: v.string(),
     paragraphIndex: v.number(),
     wordCount: v.number(),
+    articleOrder: v.number(),
+    sequenceOrder: v.number(),
   },
   handler: async (ctx, { existingId, ...data }) => {
     if (existingId) {
@@ -559,10 +574,12 @@ export const rescrapeArticle = internalMutation({
       throw new ConvexError(`Article "${articleTitle}" not found`);
     }
     
-    // Get the article URL from the first paragraph
+    // Get the article URL and order info from the first paragraph
     const articleUrl = existingParagraphs[0].articleUrl;
     const bookTitle = existingParagraphs[0].bookTitle;
     const sequenceTitle = existingParagraphs[0].sequenceTitle;
+    const articleOrder = existingParagraphs[0].articleOrder;
+    const sequenceOrder = existingParagraphs[0].sequenceOrder;
     
     // Reset scraping progress for this URL
     const progress = await ctx.db
@@ -587,6 +604,8 @@ export const rescrapeArticle = internalMutation({
       bookTitle,
       sequenceTitle,
       existingIdsByIndex,
+      articleOrder,
+      sequenceOrder,
     });
     
     return { 
@@ -603,8 +622,10 @@ export const rescrapeArticleAction = internalAction({
     bookTitle: v.string(),
     sequenceTitle: v.string(),
     existingIdsByIndex: v.optional(v.record(v.string(), v.id("sequences"))),
+    articleOrder: v.number(),
+    sequenceOrder: v.number(),
   },
-  handler: async (ctx, { url, bookTitle, sequenceTitle, existingIdsByIndex }) => {
+  handler: async (ctx, { url, bookTitle, sequenceTitle, existingIdsByIndex, articleOrder, sequenceOrder }) => {
     console.log(`Rescraping article: ${url}`);
     
     try {
@@ -640,6 +661,8 @@ export const rescrapeArticleAction = internalAction({
           articleUrl: finalUrl,
           paragraphIndex: i,
           wordCount,
+          articleOrder,
+          sequenceOrder,
         });
         
         processedIndices.add(i);
