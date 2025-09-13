@@ -1,25 +1,25 @@
 import { Doc, Id } from "./_generated/dataModel";
 import { MutationCtx } from "./_generated/server";
-import { sequencesByWordCount, playerStatsByUser } from "./aggregates";
+import { paragraphsByWordCount, playerStatsByUser } from "./aggregates";
 
-// Sequences table operations
-export async function insertSequence(
+// Paragraphs table operations
+export async function insertParagraph(
   ctx: MutationCtx,
-  args: Omit<Doc<"sequences">, "_id" | "_creationTime">
+  args: Omit<Doc<"paragraphs">, "_id" | "_creationTime">
 ) {
-  const id = await ctx.db.insert("sequences", args);
+  const id = await ctx.db.insert("paragraphs", args);
   const doc = await ctx.db.get(id);
   if (doc) {
-    await sequencesByWordCount.insert(ctx, doc);
+    await paragraphsByWordCount.insert(ctx, doc);
   }
   return id;
 }
 
-export async function deleteSequence(ctx: MutationCtx, id: Id<"sequences">) {
+export async function deleteParagraph(ctx: MutationCtx, id: Id<"paragraphs">) {
   const doc = await ctx.db.get(id);
   if (doc) {
     await ctx.db.delete(id);
-    await sequencesByWordCount.delete(ctx, doc);
+    await paragraphsByWordCount.delete(ctx, doc);
   }
 }
 

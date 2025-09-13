@@ -551,7 +551,7 @@ export const startGame = mutation({
     roomCode: v.string(),
     minWordCount: v.optional(v.number()),
     maxWordCount: v.optional(v.number()),
-    specificParagraphId: v.optional(v.id("sequences")),
+    specificParagraphId: v.optional(v.id("paragraphs")),
   },
   handler: async (ctx, { roomCode, minWordCount = 50, maxWordCount = 150, specificParagraphId }) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -618,7 +618,7 @@ export const startGame = mutation({
     });
 
     // Use specific paragraph if provided, otherwise select random
-    let selectedParagraphId: Id<"sequences"> | null = null;
+    let selectedParagraphId: Id<"paragraphs"> | null = null;
     
     if (specificParagraphId) {
       // Verify the paragraph exists

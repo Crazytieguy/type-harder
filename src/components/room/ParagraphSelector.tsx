@@ -5,8 +5,8 @@ import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 
 interface ParagraphSelectorProps {
-  selectedParagraphId: Id<"sequences"> | null;
-  onSelectParagraph: (paragraphId: Id<"sequences"> | null) => void;
+  selectedParagraphId: Id<"paragraphs"> | null;
+  onSelectParagraph: (paragraphId: Id<"paragraphs"> | null) => void;
 }
 
 export default function ParagraphSelector({
@@ -85,7 +85,7 @@ export default function ParagraphSelector({
           className="btn btn-success btn-sm w-full"
         >
           <ArrowRight className="w-4 h-4" />
-          Next Uncompleted: {nextUncompleted.paragraph.articleTitle} (#{nextUncompleted.paragraph.paragraphIndex + 1})
+          Next Uncompleted: {nextUncompleted.paragraph.articleTitle} (#{nextUncompleted.paragraph.indexInArticle + 1})
         </button>
       )}
 
@@ -163,7 +163,7 @@ export default function ParagraphSelector({
                           <Circle className="w-4 h-4 shrink-0" />
                         )}
                         <span className="text-left flex-1">
-                          Paragraph {para.paragraphIndex + 1}
+                          Paragraph {para.indexInArticle + 1}
                         </span>
                         <span className="text-xs opacity-70">
                           {para.wordCount} words
@@ -184,7 +184,7 @@ export default function ParagraphSelector({
                   {selectedParagraphDetails.bookTitle} → {selectedParagraphDetails.sequenceTitle}
                 </div>
                 <div className="text-sm font-medium mb-2">
-                  {selectedParagraphDetails.articleTitle} (#{selectedParagraphDetails.paragraphIndex + 1})
+                  {selectedParagraphDetails.articleTitle} (#{selectedParagraphDetails.indexInArticle + 1})
                 </div>
                 <div className="text-xs line-clamp-3 opacity-80">
                   {selectedParagraphDetails.content}

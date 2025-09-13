@@ -21,7 +21,7 @@ export const getArticles = query({
     }
 
     // Get all sequences
-    const allSequences = await ctx.db.query("sequences").collect();
+    const allSequences = await ctx.db.query("paragraphs").collect();
 
     // Get user's completed paragraphs
     const userPlayers = await ctx.db
@@ -30,7 +30,7 @@ export const getArticles = query({
       .filter((q) => q.neq(q.field("finishedAt"), undefined))
       .collect();
 
-    const completedParagraphIds = new Set<Id<"sequences">>();
+    const completedParagraphIds = new Set<Id<"paragraphs">>();
     for (const player of userPlayers) {
       const game = await ctx.db.get(player.gameId);
       if (game) {
@@ -47,8 +47,8 @@ export const getArticles = query({
       articleOrder: number;
       sequenceOrder: number;
       paragraphs: Array<{
-        _id: Id<"sequences">;
-        paragraphIndex: number;
+        _id: Id<"paragraphs">;
+        indexInArticle: number;
         wordCount: number;
         completed: boolean;
       }>;
@@ -69,7 +69,7 @@ export const getArticles = query({
 
       articleMap.get(seq.articleTitle)!.paragraphs.push({
         _id: seq._id,
-        paragraphIndex: seq.paragraphIndex,
+        indexInArticle: seq.indexInArticle,
         wordCount: seq.wordCount,
         completed: completedParagraphIds.has(seq._id),
       });
@@ -77,7 +77,7 @@ export const getArticles = query({
 
     // Convert to array and calculate stats
     const articles = Array.from(articleMap.values()).map(article => {
-      const sortedParagraphs = article.paragraphs.sort((a, b) => a.paragraphIndex - b.paragraphIndex);
+      const sortedParagraphs = article.paragraphs.sort((a, b) => a.indexInArticle - b.indexInArticle);
       const completedCount = sortedParagraphs.filter(p => p.completed).length;
       
       return {
@@ -110,8 +110,8 @@ export const getArticleParagraphs = query({
     
     // Get all paragraphs for this article
     const paragraphs = await ctx.db
-      .query("sequences")
-      .withIndex("by_articleTitle", (q) => q.eq("articleTitle", articleTitle))
+      .query("paragraphs")
+      .withIndex("by_article", (q) => q.eq("articleTitle", articleTitle))
       .collect();
 
     if (paragraphs.length === 0) {
@@ -119,7 +119,7 @@ export const getArticleParagraphs = query({
     }
 
     // Get user's completed paragraphs if authenticated
-    const completedIds = new Set<Id<"sequences">>();
+    const completedIds = new Set<Id<"paragraphs">>();
     if (identity) {
       const user = await ctx.db
         .query("users")
@@ -144,10 +144,10 @@ export const getArticleParagraphs = query({
 
     // Sort paragraphs and add completion status
     const sortedParagraphs = paragraphs
-      .sort((a, b) => a.paragraphIndex - b.paragraphIndex)
+      .sort((a, b) => a.indexInArticle - b.indexInArticle)
       .map(p => ({
         _id: p._id,
-        paragraphIndex: p.paragraphIndex,
+        indexInArticle: p.indexInArticle,
         wordCount: p.wordCount,
         content: p.content,
         completed: completedIds.has(p._id),
@@ -174,7 +174,7 @@ export const getNextUncompletedParagraph = query({
     if (!identity) {
       // If not authenticated, just return the first paragraph
       const firstParagraph = await ctx.db
-        .query("sequences")
+        .query("paragraphs")
         .order("asc")
         .first();
       return firstParagraph ? { paragraphId: firstParagraph._id, paragraph: firstParagraph } : null;
@@ -187,7 +187,7 @@ export const getNextUncompletedParagraph = query({
 
     if (!user) {
       const firstParagraph = await ctx.db
-        .query("sequences")
+        .query("paragraphs")
         .order("asc")
         .first();
       return firstParagraph ? { paragraphId: firstParagraph._id, paragraph: firstParagraph } : null;
@@ -200,7 +200,7 @@ export const getNextUncompletedParagraph = query({
       .filter((q) => q.neq(q.field("finishedAt"), undefined))
       .collect();
 
-    const completedParagraphIds = new Set<Id<"sequences">>();
+    const completedParagraphIds = new Set<Id<"paragraphs">>();
     for (const player of userPlayers) {
       const game = await ctx.db.get(player.gameId);
       if (game) {
@@ -209,12 +209,12 @@ export const getNextUncompletedParagraph = query({
     }
 
     // Get all sequences and find the first uncompleted one
-    const allSequences = await ctx.db.query("sequences").collect();
+    const allSequences = await ctx.db.query("paragraphs").collect();
     
     // Sort by original readthesequences.com order
     allSequences.sort((a, b) => {
       if (a.articleOrder !== b.articleOrder) return a.articleOrder - b.articleOrder;
-      return a.paragraphIndex - b.paragraphIndex;
+      return a.indexInArticle - b.indexInArticle;
     });
 
     // Find first uncompleted paragraph
@@ -232,7 +232,7 @@ export const getNextUncompletedParagraph = query({
 // Get a specific paragraph by ID
 export const getParagraphById = query({
   args: {
-    paragraphId: v.id("sequences"),
+    paragraphId: v.id("paragraphs"),
   },
   handler: async (ctx, { paragraphId }) => {
     return await ctx.db.get(paragraphId);

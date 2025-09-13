@@ -1,7 +1,7 @@
 import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import { internalAction, internalMutation, internalQuery } from "./_generated/server";
-import { insertSequence } from "./dbHelpers";
+import { insertParagraph } from "./dbHelpers";
 
 export const scrapeSequences = internalAction({
   args: {
@@ -82,7 +82,7 @@ export const scrapeSequences = internalAction({
             sequenceTitle,
             articleTitle: title,
             articleUrl: finalUrl,
-            paragraphIndex: i,
+            indexInArticle: i,
             wordCount,
             articleOrder: globalArticleOrder,
             sequenceOrder,
@@ -481,26 +481,26 @@ export const saveParagraph = internalMutation({
     sequenceTitle: v.string(),
     articleTitle: v.string(),
     articleUrl: v.string(),
-    paragraphIndex: v.number(),
+    indexInArticle: v.number(),
     wordCount: v.number(),
     articleOrder: v.number(),
     sequenceOrder: v.number(),
   },
   handler: async (ctx, args) => {
-    await insertSequence(ctx, args);
+    await insertParagraph(ctx, args);
   },
 });
 
 // Mutation to update existing paragraph or create new one
 export const updateOrCreateParagraph = internalMutation({
   args: {
-    existingId: v.optional(v.id("sequences")),
+    existingId: v.optional(v.id("paragraphs")),
     content: v.string(),
     bookTitle: v.string(),
     sequenceTitle: v.string(),
     articleTitle: v.string(),
     articleUrl: v.string(),
-    paragraphIndex: v.number(),
+    indexInArticle: v.number(),
     wordCount: v.number(),
     articleOrder: v.number(),
     sequenceOrder: v.number(),
@@ -511,7 +511,7 @@ export const updateOrCreateParagraph = internalMutation({
       await ctx.db.replace(existingId, data);
     } else {
       // Create new document
-      await insertSequence(ctx, data);
+      await insertParagraph(ctx, data);
     }
   },
 });
@@ -519,7 +519,7 @@ export const updateOrCreateParagraph = internalMutation({
 // Mutation to delete a paragraph
 export const deleteParagraph = internalMutation({
   args: {
-    id: v.id("sequences"),
+    id: v.id("paragraphs"),
   },
   handler: async (ctx, { id }) => {
     await ctx.db.delete(id);
@@ -566,8 +566,8 @@ export const rescrapeArticle = internalMutation({
   handler: async (ctx, { articleTitle }) => {
     // Find existing paragraphs from this article
     const existingParagraphs = await ctx.db
-      .query("sequences")
-      .withIndex("by_articleTitle", (q) => q.eq("articleTitle", articleTitle))
+      .query("paragraphs")
+      .withIndex("by_article", (q) => q.eq("articleTitle", articleTitle))
       .collect();
     
     if (existingParagraphs.length === 0) {
@@ -593,7 +593,7 @@ export const rescrapeArticle = internalMutation({
     
     // Store existing paragraph IDs by index for reuse
     const existingIdsByIndex = Object.fromEntries(
-      existingParagraphs.map(p => [p.paragraphIndex, p._id])
+      existingParagraphs.map(p => [p.indexInArticle, p._id])
     );
     
     console.log(`Found ${existingParagraphs.length} existing paragraphs from "${articleTitle}"`);
@@ -621,7 +621,7 @@ export const rescrapeArticleAction = internalAction({
     url: v.string(),
     bookTitle: v.string(),
     sequenceTitle: v.string(),
-    existingIdsByIndex: v.optional(v.record(v.string(), v.id("sequences"))),
+    existingIdsByIndex: v.optional(v.record(v.string(), v.id("paragraphs"))),
     articleOrder: v.number(),
     sequenceOrder: v.number(),
   },
@@ -659,7 +659,7 @@ export const rescrapeArticleAction = internalAction({
           sequenceTitle,
           articleTitle: title,
           articleUrl: finalUrl,
-          paragraphIndex: i,
+          indexInArticle: i,
           wordCount,
           articleOrder,
           sequenceOrder,

@@ -10,21 +10,20 @@ export default defineSchema({
     avatarUrl: v.optional(v.string()),
   }).index("by_clerkId", ["clerkId"]),
 
-  sequences: defineTable({
+  paragraphs: defineTable({
     content: v.string(),
     bookTitle: v.string(),
     sequenceTitle: v.string(),
     articleTitle: v.string(),
     articleUrl: v.string(),
-    paragraphIndex: v.number(),
+    indexInArticle: v.number(), // Paragraph index within the article (0-based)
     wordCount: v.number(),
     articleOrder: v.number(), // Global article order from readthesequences.com
-    sequenceOrder: v.number(), // Order within the sequence
+    sequenceOrder: v.number(), // Order of article within its sequence
   })
-    .index("by_book", ["bookTitle"])
-    .index("by_random", ["wordCount"]) // For random selection with word count filtering
-    .index("by_articleTitle", ["articleTitle"]) // For rescraping specific articles
-    .index("by_order", ["articleOrder", "paragraphIndex"]), // For sequential progression
+    .index("by_article", ["articleTitle", "indexInArticle"]) // For article queries
+    .index("by_word_count", ["wordCount"]) // For random selection with filtering
+    .index("by_global_order", ["articleOrder", "indexInArticle"]), // For sequential progression
 
   rooms: defineTable({
     roomCode: v.string(),
@@ -37,7 +36,7 @@ export default defineSchema({
   games: defineTable({
     roomId: v.id("rooms"),
     status: v.union(v.literal("playing"), v.literal("finished")),
-    selectedParagraphId: v.id("sequences"),
+    selectedParagraphId: v.id("paragraphs"),
     startTime: v.number(),
   }).index("by_room", ["roomId"]),
 

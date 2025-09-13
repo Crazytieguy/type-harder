@@ -43,7 +43,7 @@ export default function RoomLobby({
   room: { roomCode, ...room },
 }: RoomLobbyProps) {
   const [copied, setCopied] = useState(false);
-  const [selectedParagraphId, setSelectedParagraphId] = useState<Id<"sequences"> | null>(null);
+  const [selectedParagraphId, setSelectedParagraphId] = useState<Id<"paragraphs"> | null>(null);
   const toggleReady = useMutation(api.games.toggleReady);
   const startGame = useMutation(api.games.startGame);
   const joinRoom = useMutation(api.games.joinRoom);

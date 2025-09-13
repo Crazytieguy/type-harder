@@ -4,12 +4,12 @@ import { DataModel, Doc } from "./_generated/dataModel";
 import { MutationCtx, QueryCtx } from "./_generated/server";
 
 // Aggregate sorted by word count for efficient range queries
-export const sequencesByWordCount = new TableAggregate<{
+export const paragraphsByWordCount = new TableAggregate<{
   DataModel: DataModel;
-  TableName: "sequences";
+  TableName: "paragraphs";
   Key: number;
-}>(components.sequencesByWordCount, {
-  sortKey: (doc: Doc<"sequences">) => doc.wordCount,
+}>(components.paragraphsByWordCount, {
+  sortKey: (doc: Doc<"paragraphs">) => doc.wordCount,
 });
 
 // O(1) random paragraph selection within word count bounds
@@ -23,7 +23,7 @@ export async function getRandomParagraphInRange(
     upper: { key: maxWordCount, inclusive: true },
   };
   
-  const count = await sequencesByWordCount.count(ctx, {
+  const count = await paragraphsByWordCount.count(ctx, {
     namespace: undefined,
     bounds,
   });
@@ -33,7 +33,7 @@ export async function getRandomParagraphInRange(
   }
   
   const randomIndex = Math.floor(Math.random() * count);
-  const result = await sequencesByWordCount.at(ctx, randomIndex, {
+  const result = await paragraphsByWordCount.at(ctx, randomIndex, {
     namespace: undefined,
     bounds,
   });
