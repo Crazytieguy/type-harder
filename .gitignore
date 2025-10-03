@@ -22,3 +22,8 @@ CLAUDE.local.md
 *.sln
 *.sw?
 .pnpm-store
+
+# Playwright test artifacts
+test-results/
+playwright-report/
+playwright/.cache/

@@ -70,4 +70,12 @@ export default defineSchema({
     lastProcessedAt: v.optional(v.number()),
     errorMessage: v.optional(v.string()),
   }).index("by_url", ["url"]),
+
+  completions: defineTable({
+    userId: v.id("users"),
+    paragraphId: v.id("paragraphs"),
+    completedAt: v.number(),
+  })
+    .index("by_user_and_paragraph", ["userId", "paragraphId"])
+    .index("by_user", ["userId"]),
 });

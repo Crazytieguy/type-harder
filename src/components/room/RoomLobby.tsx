@@ -44,6 +44,7 @@ export default function RoomLobby({
 }: RoomLobbyProps) {
   const [copied, setCopied] = useState(false);
   const [selectedParagraphId, setSelectedParagraphId] = useState<Id<"paragraphs"> | null>(null);
+  const [paragraphMode, setParagraphMode] = useState<"random" | "next" | "choose">("random");
   const toggleReady = useMutation(api.games.toggleReady);
   const startGame = useMutation(api.games.startGame);
   const joinRoom = useMutation(api.games.joinRoom);
@@ -209,13 +210,14 @@ export default function RoomLobby({
                   <ParagraphSelector
                     selectedParagraphId={selectedParagraphId}
                     onSelectParagraph={setSelectedParagraphId}
+                    onModeChange={setParagraphMode}
                   />
-                  
+
                   {/* Word count range for random mode */}
-                  {!selectedParagraphId && (
-                    <div className="mt-4 p-3 bg-base-200 rounded-lg">
-                      <div className="text-sm font-medium mb-2">Word Count Range for Random</div>
-                      <div className="px-2 mt-4">
+                  {paragraphMode === "random" && (
+                    <div className="mt-6 p-3 bg-base-200 rounded-lg">
+                      <div className="text-sm font-medium mb-4">Word Count Range for Random</div>
+                      <div className="px-2 mt-6">
                         <wordCountForm.Field name="minWordCount">
                           {(minField) => (
                             <wordCountForm.Field name="maxWordCount">

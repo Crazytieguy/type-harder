@@ -740,6 +740,22 @@ export const updateProgress = mutation({
       const wpm = Math.round((paragraph.wordCount / raceDuration) * 60);
       updates.wpm = wpm;
 
+      // Record completion in completions table
+      const existingCompletion = await ctx.db
+        .query("completions")
+        .withIndex("by_user_and_paragraph", (q) =>
+          q.eq("userId", player.userId).eq("paragraphId", activeGame.selectedParagraphId)
+        )
+        .unique();
+
+      if (!existingCompletion) {
+        await ctx.db.insert("completions", {
+          userId: player.userId,
+          paragraphId: activeGame.selectedParagraphId,
+          completedAt: finishedAt,
+        });
+      }
+
       // Check if all players still in the room have finished
       const allPlayers = await ctx.db
         .query("players")
