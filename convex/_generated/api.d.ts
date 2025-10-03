@@ -14,6 +14,7 @@ import type * as dbHelpers from "../dbHelpers.js";
 import type * as games from "../games.js";
 import type * as scraping from "../scraping.js";
 import type * as stats from "../stats.js";
+import type * as testingFunctions from "../testingFunctions.js";
 import type * as users from "../users.js";
 
 import type {
@@ -37,6 +38,7 @@ declare const fullApi: ApiFromModules<{
   games: typeof games;
   scraping: typeof scraping;
   stats: typeof stats;
+  testingFunctions: typeof testingFunctions;
   users: typeof users;
 }>;
 declare const fullApiWithMounts: typeof fullApi;

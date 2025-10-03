@@ -587,12 +587,39 @@ export default function RaceView({
           expectedIndex += 1;
           continue;
         }
+        // Umlauts (diaeresis + vowel)
+        else if (twoChar === '"o' && expectedChar === '\u00f6') {
+          // "o for ö (diaeresis + o)
+          typedIndex += 2;
+          expectedIndex += 1;
+          continue;
+        } else if (twoChar === '"a' && expectedChar === '\u00e4') {
+          // "a for ä
+          typedIndex += 2;
+          expectedIndex += 1;
+          continue;
+        } else if (twoChar === '"u' && expectedChar === '\u00fc') {
+          // "u for ü
+          typedIndex += 2;
+          expectedIndex += 1;
+          continue;
+        } else if (twoChar === '"e' && expectedChar === '\u00eb') {
+          // "e for ë
+          typedIndex += 2;
+          expectedIndex += 1;
+          continue;
+        } else if (twoChar === '"i' && expectedChar === '\u00ef') {
+          // "i for ï
+          typedIndex += 2;
+          expectedIndex += 1;
+          continue;
+        }
       }
       
       // Check for three-character sequences first (before two-char)
       if (typedIndex + 2 < typed.length) {
         const threeChar = typed.substring(typedIndex, typedIndex + 3);
-        
+
         if (threeChar === '...' && expectedChar === '\u2026') {
           // Three dots for ellipsis
           typedIndex += 3;
@@ -600,6 +627,11 @@ export default function RaceView({
           continue;
         } else if (threeChar === '---' && expectedChar === '\u2014') {
           // Three dashes for em dash
+          typedIndex += 3;
+          expectedIndex += 1;
+          continue;
+        } else if (threeChar === '|->' && expectedChar === '\u21a6') {
+          // |-> for maps-to arrow
           typedIndex += 3;
           expectedIndex += 1;
           continue;
@@ -638,6 +670,11 @@ export default function RaceView({
           typedIndex += 2;
           expectedIndex += 1;
           continue;
+        } else if (twoChar === '=>' && expectedChar === '\u21d2') {
+          // => for double arrow (implies)
+          typedIndex += 2;
+          expectedIndex += 1;
+          continue;
         }
         // Dashes - but don't match -- for en dash if we're expecting em dash
         else if (twoChar === '--' && expectedChar === '\u2013') {
@@ -654,6 +691,13 @@ export default function RaceView({
         if (expectedChar === 'é' && typedChar === '´') {
           setPartialAccentPosition(currentIdx + expectedIndex);
           return; // Keep the ´ in the input buffer
+        }
+        // Umlauts - first character (diaeresis)
+        else if ((expectedChar === '\u00f6' || expectedChar === '\u00e4' ||
+                  expectedChar === '\u00fc' || expectedChar === '\u00eb' ||
+                  expectedChar === '\u00ef') && typedChar === '"') {
+          setPartialAccentPosition(currentIdx + expectedIndex);
+          return; // Keep the " in the input buffer
         }
         // Ellipsis - first dot
         else if (expectedChar === '\u2026' && typedChar === '.') {
@@ -678,6 +722,16 @@ export default function RaceView({
           setPartialAccentPosition(currentIdx + expectedIndex);
           return;
         }
+        // Double arrow - first character
+        else if (expectedChar === '\u21d2' && typedChar === '=') {
+          setPartialAccentPosition(currentIdx + expectedIndex);
+          return;
+        }
+        // Maps-to arrow - first character
+        else if (expectedChar === '\u21a6' && typedChar === '|') {
+          setPartialAccentPosition(currentIdx + expectedIndex);
+          return;
+        }
         // En dash - only first dash
         else if (expectedChar === '\u2013' && typedChar === '-') {
           setPartialAccentPosition(currentIdx + expectedIndex);
@@ -691,7 +745,7 @@ export default function RaceView({
       }
       
       // Special case for ellipsis - second dot
-      if (typedIndex + 1 === typed.length && expectedChar === '\u2026' && typed === '..') {
+      if (typedIndex === 0 && typed === '..' && expectedChar === '\u2026') {
         setPartialAccentPosition(currentIdx + expectedIndex);
         return;
       }
@@ -701,19 +755,36 @@ export default function RaceView({
         setPartialAccentPosition(currentIdx + expectedIndex);
         return;
       }
-      
+
+      // Special case for maps-to arrow - check for partial |  - (waiting for >)
+      if (typedIndex === 0 && typed === '|-' && expectedChar === '\u21a6') {
+        setPartialAccentPosition(currentIdx + expectedIndex);
+        return;
+      }
+
       // Single character comparison
       // const typedChar = typed[typedIndex];  // Already defined above
       
       // Normalize both characters to handle decomposed Unicode
       const normalizedExpected = expectedChar.normalize('NFC');
       const normalizedTypedChar = typedChar.normalize('NFC');
-      
+
       // Normalize quotes - allow typing regular quotes for smart quotes
       let normalizedTyped = normalizedTypedChar;
       if (typedChar === '"' && (expectedChar === '\u201C' || expectedChar === '\u201D' || expectedChar === '"')) {
         normalizedTyped = expectedChar;
       } else if (typedChar === "'" && (expectedChar === '\u2018' || expectedChar === '\u2019' || expectedChar === "'")) {
+        normalizedTyped = expectedChar;
+      }
+      // Math symbols - allow typing simple characters for unicode symbols
+      else if (typedChar === '-' && expectedChar === '\u2212') {
+        // Hyphen for minus sign
+        normalizedTyped = expectedChar;
+      } else if (typedChar === '*' && expectedChar === '\u00d7') {
+        // Asterisk for multiplication
+        normalizedTyped = expectedChar;
+      } else if (typedChar === '~' && expectedChar === '\u00ac') {
+        // Tilde for logical not
         normalizedTyped = expectedChar;
       }
       
