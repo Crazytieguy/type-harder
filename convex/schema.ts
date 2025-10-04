@@ -72,7 +72,14 @@ export default defineSchema({
     ),
     lastProcessedAt: v.optional(v.number()),
     errorMessage: v.optional(v.string()),
-  }).index("by_url", ["url"]),
+    bookTitle: v.optional(v.string()),
+    sequenceTitle: v.optional(v.string()),
+    articleOrder: v.optional(v.number()),
+    sequenceOrder: v.optional(v.number()),
+    bookOrder: v.optional(v.number()),
+  })
+    .index("by_url", ["url"])
+    .index("by_status", ["status"]),
 
   completions: defineTable({
     userId: v.id("users"),

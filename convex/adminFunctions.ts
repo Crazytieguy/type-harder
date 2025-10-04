@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { internalMutation } from "./_generated/server";
+import { internalMutation, internalQuery } from "./_generated/server";
 import { paragraphsByWordCount } from "./aggregates";
 import { internal } from "./_generated/api";
 
@@ -74,13 +74,32 @@ export const cleanDatabase = internalMutation({
 export const triggerRescrape = internalMutation({
   args: { pageLimit: v.optional(v.number()) },
   handler: async (ctx, { pageLimit }) => {
-    // Schedule the scraping action
+    // Schedule the scraping action (now uses batch processing)
     await ctx.scheduler.runAfter(
       0,
-      internal.scraping.scrapeSequences,
+      internal.scraping.initializeScraping,
       pageLimit ? { pageLimit } : {}
     );
 
-    return { message: "Scraping scheduled" };
+    return { message: "Batch scraping scheduled - will process in chunks of 20 articles" };
+  },
+});
+
+export const getDatabaseStats = internalQuery({
+  args: {},
+  handler: async (ctx) => {
+    const paragraphs = await ctx.db.query("paragraphs").collect();
+    const scrapingProgress = await ctx.db.query("scrapingProgress").collect();
+
+    const statusCounts = scrapingProgress.reduce((acc, item) => {
+      acc[item.status] = (acc[item.status] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+
+    return {
+      paragraphCount: paragraphs.length,
+      scrapingProgressCount: scrapingProgress.length,
+      statusCounts,
+    };
   },
 });

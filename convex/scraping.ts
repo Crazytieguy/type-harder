@@ -3,12 +3,13 @@ import { internal } from "./_generated/api";
 import { internalAction, internalMutation, internalQuery } from "./_generated/server";
 import { insertParagraph } from "./dbHelpers";
 
-export const scrapeSequences = internalAction({
+// Initialize scraping by parsing TOC and queueing all articles
+export const initializeScraping = internalAction({
   args: {
     pageLimit: v.optional(v.number()),
   },
   handler: async (ctx, { pageLimit }) => {
-    console.log("Starting to scrape The Sequences...");
+    console.log("Initializing scraping of The Sequences...");
 
     // First, get the table of contents
     const tocUrl = "https://www.readthesequences.com/Contents?action=markdown";
@@ -29,14 +30,12 @@ export const scrapeSequences = internalAction({
       ? articleUrls.slice(0, pageLimit)
       : articleUrls;
 
-    let successCount = 0;
-    let errorCount = 0;
-    let globalArticleOrder = 0;
+    // Queue all articles with metadata
     const sequenceArticleCounts = new Map<string, number>();
     const bookOrders = new Map<string, number>();
     let currentBookOrderCounter = 0;
+    let globalArticleOrder = 0;
 
-    // Process each article
     for (const { url, bookTitle, sequenceTitle } of urlsToProcess) {
       // Track order of books
       if (!bookOrders.has(bookTitle)) {
@@ -48,99 +47,141 @@ export const scrapeSequences = internalAction({
       const sequenceKey = `${bookTitle}|${sequenceTitle}`;
       const sequenceOrder = (sequenceArticleCounts.get(sequenceKey) || 0) + 1;
       sequenceArticleCounts.set(sequenceKey, sequenceOrder);
+      globalArticleOrder++;
+
+      // Initialize scraping progress
+      await ctx.runMutation(internal.scraping.initializeArticle, {
+        url,
+        bookTitle,
+        sequenceTitle,
+        articleOrder: globalArticleOrder,
+        sequenceOrder,
+        bookOrder,
+      });
+    }
+
+    console.log(`Queued ${urlsToProcess.length} articles for scraping`);
+
+    // Start the first batch
+    await ctx.scheduler.runAfter(0, internal.scraping.processBatch, {});
+
+    return { queued: urlsToProcess.length };
+  },
+});
+
+// Process a batch of pending articles
+export const processBatch = internalAction({
+  args: {},
+  handler: async (ctx): Promise<{ processed: number; hasMore: boolean }> => {
+    const batchSize = 20; // Process 20 articles at a time
+
+    // Get pending articles
+    const pendingArticles: Array<{
+      url: string;
+      bookTitle: string;
+      sequenceTitle: string;
+      articleOrder: number;
+      sequenceOrder: number;
+      bookOrder: number;
+    }> = await ctx.runQuery(
+      internal.scraping.getPendingArticles,
+      { limit: batchSize }
+    );
+
+    if (pendingArticles.length === 0) {
+      console.log("No more pending articles to process");
+      return { processed: 0, hasMore: false };
+    }
+
+    console.log(`Processing batch of ${pendingArticles.length} articles...`);
+
+    let successCount = 0;
+    let errorCount = 0;
+
+    for (const article of pendingArticles) {
       try {
-        // Check if already processed
-        const existingProgress = await ctx.runQuery(
-          internal.scraping.getScrapingProgress,
-          { url },
-        );
-
-        if (existingProgress?.status === "completed") {
-          console.log(`Skipping already processed: ${url}`);
-          globalArticleOrder++;
-          continue;
-        }
-        
-        globalArticleOrder++;
-
         // Mark as processing
-        await ctx.runMutation(
-          internal.scraping.updateScrapingProgress,
-          {
-            url,
-            status: "processing",
-          },
-        );
+        await ctx.runMutation(internal.scraping.updateScrapingProgress, {
+          url: article.url,
+          status: "processing",
+        });
 
-        // Fetch the article content with redirect handling
-        const { markdown: articleMarkdown, finalUrl } = await fetchArticleWithRedirect(url);
-
-        // Extract article title and paragraphs
+        // Fetch and process the article
+        const { markdown: articleMarkdown, finalUrl } = await fetchArticleWithRedirect(article.url);
         const { title, paragraphs } = extractArticleContent(articleMarkdown);
 
-        // Save paragraphs to database
+        // Save paragraphs
         for (let i = 0; i < paragraphs.length; i++) {
           const paragraph = paragraphs[i];
           const wordCount = countWords(paragraph);
 
-          // Save all paragraphs (filtering can be done later when selecting)
           await ctx.runMutation(internal.scraping.saveParagraph, {
             content: paragraph,
-            bookTitle,
-            sequenceTitle,
+            bookTitle: article.bookTitle,
+            sequenceTitle: article.sequenceTitle,
             articleTitle: title,
             articleUrl: finalUrl,
             indexInArticle: i,
             wordCount,
-            articleOrder: globalArticleOrder,
-            sequenceOrder,
-            bookOrder,
+            articleOrder: article.articleOrder,
+            sequenceOrder: article.sequenceOrder,
+            bookOrder: article.bookOrder,
           });
         }
 
         // Mark as completed
-        await ctx.runMutation(
-          internal.scraping.updateScrapingProgress,
-          {
-            url,
-            status: "completed",
-          },
-        );
+        await ctx.runMutation(internal.scraping.updateScrapingProgress, {
+          url: article.url,
+          status: "completed",
+        });
 
         successCount++;
-        console.log(
-          `Processed ${successCount}/${urlsToProcess.length}: ${title}`,
-        );
+        console.log(`✓ Processed: ${title}`);
 
-        // Add a small delay to avoid rate limiting
+        // Small delay to avoid rate limiting
         await new Promise((resolve) => setTimeout(resolve, 100));
       } catch (error) {
         errorCount++;
-        const errorMessage =
-          error instanceof Error ? error.message : "Unknown error";
+        const errorMessage = error instanceof Error ? error.message : "Unknown error";
 
-        // Log detailed error information
-        console.error(`\n❌ ERROR processing ${url}:`);
-        console.error(`   Message: ${errorMessage}`);
-        if (error instanceof Error && error.stack) {
-          console.error(`   Stack: ${error.stack.split("\n")[0]}`);
-        }
+        console.error(`✗ Failed to process ${article.url}: ${errorMessage}`);
 
-        await ctx.runMutation(
-          internal.scraping.updateScrapingProgress,
-          {
-            url,
-            status: "failed",
-            errorMessage,
-          },
-        );
+        await ctx.runMutation(internal.scraping.updateScrapingProgress, {
+          url: article.url,
+          status: "failed",
+          errorMessage,
+        });
       }
     }
 
-    console.log(
-      `Scraping completed: ${successCount} success, ${errorCount} errors`,
-    );
-    return { successCount, errorCount, total: urlsToProcess.length };
+    console.log(`Batch complete: ${successCount} success, ${errorCount} errors`);
+
+    // Schedule next batch if there are more pending articles
+    const hasMore: boolean = pendingArticles.length === batchSize;
+    if (hasMore) {
+      await ctx.scheduler.runAfter(1000, internal.scraping.processBatch, {});
+    } else {
+      // Check if there are any more pending (in case of concurrent processing)
+      const remainingCount = await ctx.runQuery(
+        internal.scraping.countPendingArticles,
+        {}
+      );
+      if (remainingCount > 0) {
+        await ctx.scheduler.runAfter(1000, internal.scraping.processBatch, {});
+      }
+    }
+
+    return { processed: successCount + errorCount, hasMore };
+  },
+});
+
+// Legacy function for backward compatibility
+export const scrapeSequences = internalAction({
+  args: {
+    pageLimit: v.optional(v.number()),
+  },
+  handler: async (ctx, args): Promise<{ queued: number }> => {
+    return await ctx.runAction(internal.scraping.initializeScraping, args);
   },
 });
 
@@ -469,6 +510,49 @@ function countWords(text: string): number {
     .filter((word) => word.length > 0).length;
 }
 
+// Internal mutations for batch processing
+export const initializeArticle = internalMutation({
+  args: {
+    url: v.string(),
+    bookTitle: v.string(),
+    sequenceTitle: v.string(),
+    articleOrder: v.number(),
+    sequenceOrder: v.number(),
+    bookOrder: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query("scrapingProgress")
+      .withIndex("by_url", (q) => q.eq("url", args.url))
+      .unique();
+
+    if (existing) {
+      // Update if status is failed, otherwise skip
+      if (existing.status === "failed" || existing.status === "pending") {
+        await ctx.db.patch(existing._id, {
+          status: "pending",
+          bookTitle: args.bookTitle,
+          sequenceTitle: args.sequenceTitle,
+          articleOrder: args.articleOrder,
+          sequenceOrder: args.sequenceOrder,
+          bookOrder: args.bookOrder,
+          errorMessage: undefined,
+        });
+      }
+    } else {
+      await ctx.db.insert("scrapingProgress", {
+        url: args.url,
+        status: "pending",
+        bookTitle: args.bookTitle,
+        sequenceTitle: args.sequenceTitle,
+        articleOrder: args.articleOrder,
+        sequenceOrder: args.sequenceOrder,
+        bookOrder: args.bookOrder,
+      });
+    }
+  },
+});
+
 // Internal queries
 export const getScrapingProgress = internalQuery({
   args: {
@@ -479,6 +563,39 @@ export const getScrapingProgress = internalQuery({
       .query("scrapingProgress")
       .withIndex("by_url", (q) => q.eq("url", url))
       .unique();
+  },
+});
+
+export const getPendingArticles = internalQuery({
+  args: {
+    limit: v.number(),
+  },
+  handler: async (ctx, { limit }) => {
+    const pending = await ctx.db
+      .query("scrapingProgress")
+      .withIndex("by_status", (q) => q.eq("status", "pending"))
+      .take(limit);
+
+    return pending.map(p => ({
+      url: p.url,
+      bookTitle: p.bookTitle!,
+      sequenceTitle: p.sequenceTitle!,
+      articleOrder: p.articleOrder!,
+      sequenceOrder: p.sequenceOrder!,
+      bookOrder: p.bookOrder!,
+    }));
+  },
+});
+
+export const countPendingArticles = internalQuery({
+  args: {},
+  handler: async (ctx) => {
+    const pending = await ctx.db
+      .query("scrapingProgress")
+      .withIndex("by_status", (q) => q.eq("status", "pending"))
+      .collect();
+
+    return pending.length;
   },
 });
 
