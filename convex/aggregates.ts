@@ -22,27 +22,40 @@ export async function getRandomParagraphInRange(
     lower: { key: minWordCount, inclusive: true },
     upper: { key: maxWordCount, inclusive: true },
   };
-  
+
   const count = await paragraphsByWordCount.count(ctx, {
     namespace: undefined,
     bounds,
   });
-  
+
   if (count === 0) {
     return null;
   }
-  
-  const randomIndex = Math.floor(Math.random() * count);
-  const result = await paragraphsByWordCount.at(ctx, randomIndex, {
-    namespace: undefined,
-    bounds,
-  });
-  
-  if (!result) {
-    return null;
+
+  let attempts = 0;
+  const maxAttempts = 10;
+
+  while (attempts < maxAttempts) {
+    const randomIndex = Math.floor(Math.random() * count);
+    const result = await paragraphsByWordCount.at(ctx, randomIndex, {
+      namespace: undefined,
+      bounds,
+    });
+
+    if (!result) {
+      attempts++;
+      continue;
+    }
+
+    const paragraph = await ctx.db.get(result.id);
+    if (paragraph) {
+      return result.id;
+    }
+
+    attempts++;
   }
-  
-  return result.id;
+
+  return null;
 }
 
 export const playerStatsByUser = new TableAggregate<{

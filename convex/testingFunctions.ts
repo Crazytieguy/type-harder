@@ -1,6 +1,7 @@
 import { customMutation, customQuery } from "convex-helpers/server/customFunctions";
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
+import { paragraphsByWordCount } from "./aggregates";
 
 const testingMutation = customMutation(mutation, {
   args: {},
@@ -171,6 +172,60 @@ export const deleteTestRoom = testingMutation({
   },
 });
 
+export const createTestParagraphs = testingMutation(async (ctx) => {
+  const testParagraphs = [
+    {
+      content: "The question isn't whether we can—it's whether we should. Here's the thing: reality doesn't care about our theories. When we face evidence that contradicts our beliefs, we have two choices: update our beliefs or engage in motivated reasoning to explain away the evidence. The rational approach is clear, yet incredibly difficult in practice. Our brains are wired to protect our existing worldview, to seek confirmation rather than truth. This cognitive bias affects everyone, from scientists to philosophers to everyday decision makers. The key is recognizing when we're doing it and consciously choosing the harder path of intellectual honesty.",
+      title: "Test Paragraph - Medium Length",
+      wordCount: 100
+    },
+    {
+      content: "Consider the nature of belief itself. What does it mean to truly believe something? Is it merely assenting to a proposition, or does genuine belief require action that demonstrates conviction? Many claim beliefs they don't actually hold when tested by reality.",
+      title: "Test Paragraph - Short",
+      wordCount: 45
+    },
+    {
+      content: "The probability calculus provides us with a framework for reasoning under uncertainty. When we encounter new evidence, we should update our beliefs in proportion to how much that evidence discriminates between hypotheses. This is Bayes' theorem in action. However, human psychology often leads us astray. We overweight vivid examples, underweight base rates, and fail to consider alternative explanations. The solution isn't to abandon our intuitions entirely, but to supplement them with systematic reasoning. By explicitly considering multiple hypotheses and evaluating evidence carefully, we can reduce the impact of cognitive biases. This metacognitive approach—thinking about thinking—is essential for rationality. It requires effort and practice, but the rewards in terms of more accurate beliefs and better decisions are substantial.",
+      title: "Test Paragraph - Long",
+      wordCount: 120
+    },
+    {
+      content: "Rationality means winning. It's not about following clever argumentation to fascinating but false conclusions. It's about systematically achieving your goals by forming accurate beliefs and making effective decisions. This requires both epistemic rationality—believing what is true—and instrumental rationality—doing what works. The two are deeply interconnected: you can't reliably achieve your goals without accurate beliefs about the world.",
+      title: "Test Paragraph - Exact 50 Words",
+      wordCount: 50
+    }
+  ];
+
+  const paragraphIds = [];
+
+  for (const { content, title, wordCount } of testParagraphs) {
+    const existing = await ctx.db
+      .query("paragraphs")
+      .filter((q) => q.eq(q.field("content"), content))
+      .first();
+
+    if (existing) {
+      paragraphIds.push(existing._id);
+    } else {
+      const id = await ctx.db.insert("paragraphs", {
+        content,
+        bookTitle: "Test Book - Rationality",
+        sequenceTitle: "Test Sequence - Epistemology",
+        articleTitle: title,
+        articleUrl: `https://example.com/test-${Date.now()}`,
+        indexInArticle: 0,
+        wordCount,
+        articleOrder: 99999,
+        sequenceOrder: 99999,
+        bookOrder: 99999,
+      });
+      paragraphIds.push(id);
+    }
+  }
+
+  return paragraphIds;
+});
+
 export const startTestGame = testingMutation({
   args: {
     roomCode: v.string(),
@@ -217,4 +272,55 @@ export const startTestGame = testingMutation({
 
     return gameId;
   },
+});
+
+export const populateAggregates = testingMutation(async (ctx) => {
+  const paragraphs = await ctx.db.query("paragraphs").collect();
+
+  for (const paragraph of paragraphs) {
+    await paragraphsByWordCount.insert(ctx, paragraph);
+  }
+
+  return { message: `Populated aggregates for ${paragraphs.length} paragraphs` };
+});
+
+export const checkAggregateCount = testingQuery(async (ctx) => {
+  const count = await paragraphsByWordCount.count(ctx, {
+    namespace: undefined,
+    bounds: {
+      lower: { key: 50, inclusive: true },
+      upper: { key: 150, inclusive: true },
+    },
+  });
+
+  return { count, message: `Found ${count} paragraphs in 50-150 word range` };
+});
+
+export const clearAndRepopulateAggregates = testingMutation(async (ctx) => {
+  await paragraphsByWordCount.clear(ctx, { namespace: undefined });
+
+  const allParagraphs = await ctx.db.query("paragraphs").collect();
+
+  for (const paragraph of allParagraphs) {
+    await paragraphsByWordCount.insert(ctx, paragraph);
+  }
+
+  return { message: `Cleared and repopulated aggregates for ${allParagraphs.length} paragraphs` };
+});
+
+export const countParagraphs = testingQuery(async (ctx) => {
+  const all = await ctx.db.query("paragraphs").collect();
+  const in50to150 = all.filter(p => p.wordCount >= 50 && p.wordCount <= 150);
+
+  return {
+    totalParagraphs: all.length,
+    in50to150Range: in50to150.length,
+    aggregateCount: await paragraphsByWordCount.count(ctx, {
+      namespace: undefined,
+      bounds: {
+        lower: { key: 50, inclusive: true },
+        upper: { key: 150, inclusive: true },
+      },
+    }),
+  };
 });

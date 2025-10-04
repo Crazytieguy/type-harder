@@ -1,9 +1,8 @@
 import { useQuery } from "convex/react";
-import { CheckCircle, Circle } from "lucide-react";
+import { BookOpen, CheckCircle, ChevronRight, RotateCcw } from "lucide-react";
 import { useState, useEffect } from "react";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
-import { renderMarkdown } from "../../utils/markdown";
 
 interface ParagraphSelectorProps {
   selectedParagraphId: Id<"paragraphs"> | null;
@@ -58,8 +57,19 @@ export default function ParagraphSelector({
     }
   };
 
+  const handleReset = () => {
+    setSelectedBook(null);
+    setSelectedSequence(null);
+    setSelectedArticle(null);
+    onSelectParagraph(null);
+  };
+
   if (!booksHierarchy) {
-    return <div className="loading loading-spinner loading-sm" />;
+    return (
+      <div className="flex items-center justify-center p-8">
+        <div className="loading loading-spinner loading-lg text-primary" />
+      </div>
+    );
   }
 
   const previewParagraph =
@@ -67,12 +77,19 @@ export default function ParagraphSelector({
       ? nextUncompleted.paragraph
       : selectedParagraphDetails;
 
+  const completionPercentage =
+    booksHierarchy.totalParagraphs > 0
+      ? Math.round(
+          (booksHierarchy.completedParagraphs / booksHierarchy.totalParagraphs) * 100
+        )
+      : 0;
+
   return (
-    <div className="space-y-3">
-      <div className="tabs tabs-box tabs-sm w-full">
+    <div className="space-y-4">
+      <div className="tabs tabs-border w-full">
         <button
           type="button"
-          className={`tab flex-1 ${mode === "random" ? "tab-active" : ""}`}
+          className={`tab flex-1 transition-all ${mode === "random" ? "tab-active" : ""}`}
           onClick={() => handleModeChange("random")}
         >
           Random
@@ -80,108 +97,149 @@ export default function ParagraphSelector({
         {nextUncompleted && (
           <button
             type="button"
-            className={`tab flex-1 ${mode === "next" ? "tab-active" : ""}`}
+            className={`tab flex-1 transition-all ${mode === "next" ? "tab-active" : ""}`}
             onClick={() => handleModeChange("next")}
           >
-            Next
+            Continue
           </button>
         )}
         <button
           type="button"
-          className={`tab flex-1 ${mode === "choose" ? "tab-active" : ""}`}
+          className={`tab flex-1 transition-all ${mode === "choose" ? "tab-active" : ""}`}
           onClick={() => handleModeChange("choose")}
         >
+          <BookOpen className="w-4 h-4 mr-1" />
           Browse
         </button>
       </div>
 
       {mode === "choose" && (
-        <div className="space-y-2">
-          <div className="flex items-center justify-between text-xs">
-              <span className="opacity-70">
-                {booksHierarchy.completedParagraphs} / {booksHierarchy.totalParagraphs} paragraphs
-              </span>
-              {(selectedBook || selectedSequence || selectedArticle) && (
-                <button
-                  type="button"
-                  className="btn btn-xs btn-ghost"
-                  onClick={() => {
-                    setSelectedBook(null);
-                    setSelectedSequence(null);
-                    setSelectedArticle(null);
-                    onSelectParagraph(null);
-                  }}
-                >
-                  Reset
-                </button>
-              )}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex-1">
+              <div className="flex items-center justify-between text-sm mb-1.5">
+                <span className="font-medium">Overall Progress</span>
+                <span className="font-mono text-sm">{completionPercentage}%</span>
+              </div>
+              <div className="progress progress-primary h-2">
+                <div
+                  className="progress-value"
+                  style={{ width: `${completionPercentage}%` }}
+                />
+              </div>
+              <div className="text-xs opacity-60 mt-1">
+                {booksHierarchy.completedParagraphs} / {booksHierarchy.totalParagraphs} paragraphs completed
+              </div>
             </div>
+            {(selectedBook || selectedSequence || selectedArticle) && (
+              <button
+                type="button"
+                className="btn btn-sm btn-ghost ml-3"
+                onClick={handleReset}
+              >
+                <RotateCcw className="w-4 h-4" />
+              </button>
+            )}
+          </div>
 
-            <div className="max-h-96 overflow-y-auto space-y-1">
+          <div className="divider my-2" />
+
+          {booksHierarchy.books.length === 0 ? (
+            <div className="text-center py-12">
+              <div className="w-16 h-16 bg-base-300 rounded-full flex items-center justify-center mx-auto mb-4">
+                <BookOpen className="w-8 h-8 opacity-50" />
+              </div>
+              <p className="text-lg font-medium mb-2">No Content Available</p>
+              <p className="text-sm opacity-60">
+                Paragraphs will appear here once they're loaded into the system.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
               {booksHierarchy.books.map((book) => {
-                const isBookExpanded = selectedBook === book.bookTitle;
-                const bookCompletedCount = book.sequences.reduce((sum, s) => sum + s.completedParagraphs, 0);
-                const bookTotalCount = book.sequences.reduce((sum, s) => sum + s.totalParagraphs, 0);
+              const isBookExpanded = selectedBook === book.bookTitle;
+              const bookCompletedCount = book.sequences.reduce((sum, s) => sum + s.completedParagraphs, 0);
+              const bookTotalCount = book.sequences.reduce((sum, s) => sum + s.totalParagraphs, 0);
+              const bookProgress = Math.round((bookCompletedCount / bookTotalCount) * 100);
 
-                return (
-                  <details
-                    key={book.bookTitle}
-                    className="collapse collapse-arrow bg-base-200"
-                    open={isBookExpanded}
-                  >
-                    <summary
-                      className="collapse-title text-xs font-medium min-h-0 py-1.5 px-3 cursor-pointer"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        if (selectedBook === book.bookTitle) {
-                          setSelectedBook(null);
-                          setSelectedSequence(null);
-                          setSelectedArticle(null);
-                        } else {
-                          setSelectedBook(book.bookTitle);
-                        }
-                      }}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span>{book.bookTitle}</span>
-                        <span className="opacity-60 font-mono text-[10px]">
-                          {bookCompletedCount}/{bookTotalCount}
-                        </span>
+              return (
+                <div key={book.bookTitle} className="collapse bg-base-200">
+                  <input
+                    type="checkbox"
+                    checked={isBookExpanded}
+                    onChange={() => {
+                      if (selectedBook === book.bookTitle) {
+                        setSelectedBook(null);
+                        setSelectedSequence(null);
+                        setSelectedArticle(null);
+                      } else {
+                        setSelectedBook(book.bookTitle);
+                      }
+                    }}
+                  />
+                  <div className="collapse-title pr-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium text-sm line-clamp-1">{book.bookTitle}</div>
+                        <div className="progress progress-success h-1.5 mt-1.5">
+                          <div
+                            className="progress-value"
+                            style={{ width: `${bookProgress}%` }}
+                          />
+                        </div>
                       </div>
-                    </summary>
-                    <div className="collapse-content px-2 pb-1">
-                      <div className="space-y-1">
-                        {book.sequences.map((sequence) => {
-                          const isSequenceExpanded = selectedSequence === sequence.sequenceTitle;
+                      <div className="badge badge-ghost font-mono text-xs flex-shrink-0">
+                        {bookCompletedCount}/{bookTotalCount}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="collapse-content">
+                    <div className="space-y-2 pt-2">
+                      {book.sequences.map((sequence) => {
+                        const isSequenceExpanded = selectedSequence === sequence.sequenceTitle;
+                        const sequenceProgress = Math.round(
+                          (sequence.completedParagraphs / sequence.totalParagraphs) * 100
+                        );
 
-                          return (
-                            <details
-                              key={sequence.sequenceTitle}
-                              className="collapse collapse-arrow bg-base-300"
-                              open={isSequenceExpanded}
-                            >
-                              <summary
-                                className="collapse-title text-[11px] min-h-0 py-1 px-2 cursor-pointer"
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  if (selectedSequence === sequence.sequenceTitle) {
-                                    setSelectedSequence(null);
-                                    setSelectedArticle(null);
-                                  } else {
-                                    setSelectedSequence(sequence.sequenceTitle);
-                                  }
-                                }}
-                              >
-                                <div className="flex items-center justify-between">
-                                  <span className="line-clamp-1">{sequence.sequenceTitle}</span>
-                                  <span className="opacity-60 font-mono text-[10px] ml-2 flex-shrink-0">
-                                    {sequence.completedParagraphs}/{sequence.totalParagraphs}
-                                  </span>
+                        return (
+                          <div key={sequence.sequenceTitle} className="collapse bg-base-300">
+                            <input
+                              type="checkbox"
+                              checked={isSequenceExpanded}
+                              onChange={() => {
+                                if (selectedSequence === sequence.sequenceTitle) {
+                                  setSelectedSequence(null);
+                                  setSelectedArticle(null);
+                                } else {
+                                  setSelectedSequence(sequence.sequenceTitle);
+                                }
+                              }}
+                            />
+                            <div className="collapse-title min-h-0 py-2 pr-3">
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="flex-1 min-w-0">
+                                  <div className="text-sm line-clamp-1">{sequence.sequenceTitle}</div>
+                                  <div className="progress progress-info h-1 mt-1.5">
+                                    <div
+                                      className="progress-value"
+                                      style={{ width: `${sequenceProgress}%` }}
+                                    />
+                                  </div>
                                 </div>
-                              </summary>
-                              <div className="collapse-content px-1 pb-1">
-                                <div className="space-y-0.5">
-                                  {sequence.articles.map((article) => (
+                                <div className="badge badge-ghost badge-sm font-mono flex-shrink-0">
+                                  {sequence.completedParagraphs}/{sequence.totalParagraphs}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="collapse-content">
+                              <div className="space-y-1.5 pt-2">
+                                {sequence.articles.map((article) => {
+                                  const articleProgress = Math.round(
+                                    (article.completedCount / article.paragraphCount) * 100
+                                  );
+                                  const isArticleSelected = selectedArticle === article.articleTitle;
+
+                                  return (
                                     <button
                                       key={article.articleTitle}
                                       type="button"
@@ -192,92 +250,115 @@ export default function ParagraphSelector({
                                           setSelectedArticle(article.articleTitle);
                                         }
                                       }}
-                                      className={`btn btn-xs w-full justify-between h-auto py-0.5 text-[10px] ${
-                                        selectedArticle === article.articleTitle
-                                          ? "btn-primary"
-                                          : article.completedCount === article.paragraphCount
-                                          ? "btn-ghost opacity-40"
-                                          : "btn-ghost"
+                                      className={`w-full text-left p-2 rounded-lg transition-colors ${
+                                        isArticleSelected
+                                          ? "bg-primary text-primary-content"
+                                          : "bg-base-100 hover:bg-base-200"
                                       }`}
                                     >
-                                      <span className="text-left flex-1 line-clamp-1">
-                                        {article.articleTitle}
-                                      </span>
-                                      <span className="opacity-60 font-mono ml-1 flex-shrink-0">
-                                        {article.completedCount}/{article.paragraphCount}
-                                      </span>
+                                      <div className="flex items-center justify-between gap-2 mb-1.5">
+                                        <div className="text-sm line-clamp-1 flex-1">
+                                          {article.articleTitle}
+                                        </div>
+                                        <ChevronRight className="w-4 h-4 flex-shrink-0" />
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        <div className={`progress h-1 flex-1 ${isArticleSelected ? "progress-primary-content" : "progress-accent"}`}>
+                                          <div
+                                            className="progress-value"
+                                            style={{ width: `${articleProgress}%` }}
+                                          />
+                                        </div>
+                                        <div className={`text-xs font-mono flex-shrink-0 ${isArticleSelected ? "opacity-90" : "opacity-60"}`}>
+                                          {article.completedCount}/{article.paragraphCount}
+                                        </div>
+                                      </div>
                                     </button>
-                                  ))}
-                                </div>
+                                  );
+                                })}
                               </div>
-                            </details>
-                          );
-                        })}
-                      </div>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
-                  </details>
-                );
-              })}
-            </div>
-
-            {selectedArticle && articleParagraphs && (
-              <div className="mt-2 p-2 bg-base-200 rounded border border-base-300">
-                <div className="text-xs font-medium mb-1.5">
-                  {selectedArticle}
+                  </div>
                 </div>
-                <div className="max-h-48 overflow-y-auto space-y-0.5">
-                  {articleParagraphs.paragraphs.map((para) => (
+              );
+            })}
+            </div>
+          )}
+
+          {selectedArticle && articleParagraphs && (
+            <>
+              <div className="divider my-2">Paragraphs</div>
+              <div className="space-y-1.5 max-h-64 overflow-y-auto">
+                {articleParagraphs.paragraphs.map((para) => {
+                  const isSelected = selectedParagraphId === para._id;
+
+                  return (
                     <button
                       key={para._id}
                       type="button"
                       onClick={() => onSelectParagraph(para._id)}
-                      className={`btn btn-xs w-full justify-start h-auto py-1 text-left ${
-                        selectedParagraphId === para._id
-                          ? "btn-primary"
+                      className={`w-full text-left p-3 rounded-lg transition-all ${
+                        isSelected
+                          ? "bg-primary text-primary-content ring-2 ring-primary ring-offset-2 ring-offset-base-100"
                           : para.completed
-                          ? "btn-ghost opacity-40"
-                          : "btn-ghost"
+                          ? "bg-base-200 opacity-50 hover:opacity-70"
+                          : "bg-base-200 hover:bg-base-300"
                       }`}
                     >
-                      <div className="flex items-center gap-1.5 w-full">
-                        {para.completed ? (
-                          <CheckCircle className="w-3 h-3 text-success flex-shrink-0" />
-                        ) : (
-                          <Circle className="w-3 h-3 flex-shrink-0" />
-                        )}
-                        <span className="font-medium text-[10px]">
-                          #{para.indexInArticle + 1}
-                        </span>
-                        <span className="flex-1 text-[10px] opacity-70 line-clamp-1">
-                          {renderMarkdown(para.content)}
-                        </span>
-                        <span className="text-[10px] opacity-60 font-mono flex-shrink-0">
-                          {para.wordCount}w
-                        </span>
+                      <div className="flex items-start gap-3">
+                        <div className="flex-shrink-0 pt-0.5">
+                          {para.completed ? (
+                            <CheckCircle className={`w-4 h-4 ${isSelected ? "text-primary-content" : "text-success"}`} />
+                          ) : (
+                            <div className={`w-4 h-4 rounded-full border-2 ${isSelected ? "border-primary-content" : "border-base-content/30"}`} />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <div className={`badge badge-sm ${isSelected ? "badge-primary-content" : "badge-ghost"}`}>
+                              #{para.indexInArticle + 1}
+                            </div>
+                            <div className={`badge badge-sm font-mono ${isSelected ? "badge-primary-content" : "badge-ghost"}`}>
+                              {para.wordCount} words
+                            </div>
+                          </div>
+                          <p className={`text-sm line-clamp-2 ${isSelected ? "" : "opacity-80"}`}>
+                            {para.content}
+                          </p>
+                        </div>
                       </div>
                     </button>
-                  ))}
-                </div>
+                  );
+                })}
               </div>
-            )}
+            </>
+          )}
         </div>
       )}
 
       {previewParagraph && (
-        <div className="p-2.5 bg-base-200 rounded border border-base-300 space-y-1.5">
-          <div className="flex items-center justify-between text-[10px]">
-            <span className="opacity-60 line-clamp-1">
-              {previewParagraph.bookTitle} → {previewParagraph.sequenceTitle}
-            </span>
-            <span className="badge badge-xs badge-ghost font-mono ml-2 flex-shrink-0">
-              {previewParagraph.wordCount}w
-            </span>
-          </div>
-          <div className="font-medium text-xs line-clamp-1">
-            {previewParagraph.articleTitle} (#{previewParagraph.indexInArticle + 1})
-          </div>
-          <div className="text-xs opacity-70 line-clamp-2">
-            {renderMarkdown(previewParagraph.content)}
+        <div className="card bg-primary text-primary-content">
+          <div className="card-body p-4">
+            <div className="flex items-start justify-between gap-3 mb-2">
+              <div className="flex-1 min-w-0">
+                <div className="text-xs opacity-80 line-clamp-1">
+                  {previewParagraph.bookTitle} → {previewParagraph.sequenceTitle}
+                </div>
+                <div className="font-medium line-clamp-1 mt-1">
+                  {previewParagraph.articleTitle}
+                </div>
+              </div>
+              <div className="badge badge-primary-content badge-sm font-mono flex-shrink-0">
+                {previewParagraph.wordCount}w
+              </div>
+            </div>
+            <p className="text-sm opacity-90 line-clamp-3">
+              {previewParagraph.content}
+            </p>
           </div>
         </div>
       )}
