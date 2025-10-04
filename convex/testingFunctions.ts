@@ -65,6 +65,7 @@ export const ensureUnicodeParagraph = testingMutation(async (ctx) => {
     wordCount,
     articleOrder: 99999,
     sequenceOrder: 99999,
+    bookOrder: 99999,
   });
 
   return paragraphId;
@@ -106,6 +107,7 @@ export const ensureTestParagraph = testingMutation({
       wordCount,
       articleOrder: 99999,
       sequenceOrder: 99999,
+      bookOrder: 99999,
     });
   },
 });

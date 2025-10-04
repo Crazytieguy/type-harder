@@ -149,7 +149,7 @@ export default function RoomLobby({
 
       <div className="not-prose">
         <div className="card bg-base-200">
-          <div className="card-body">
+          <div className="card-body min-h-[900px]">
             <h2 className="card-title">
               <Users className="w-5 h-5" />
               Players ({room.members.length})

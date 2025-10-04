@@ -20,10 +20,13 @@ export default defineSchema({
     wordCount: v.number(),
     articleOrder: v.number(), // Global article order from readthesequences.com
     sequenceOrder: v.number(), // Order of article within its sequence
+    bookOrder: v.number(), // Order of book (0 for Mere Reality, 1 for Map and Territory, etc.)
   })
     .index("by_article", ["articleTitle", "indexInArticle"]) // For article queries
     .index("by_word_count", ["wordCount"]) // For random selection with filtering
-    .index("by_global_order", ["articleOrder", "indexInArticle"]), // For sequential progression
+    .index("by_global_order", ["articleOrder", "indexInArticle"]) // For sequential progression
+    .index("by_book", ["bookOrder", "sequenceOrder", "articleOrder"]) // For book/sequence navigation
+    .index("by_sequence", ["bookTitle", "sequenceTitle", "articleOrder"]), // For sequence browsing
 
   rooms: defineTable({
     roomCode: v.string(),

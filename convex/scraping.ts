@@ -33,9 +33,17 @@ export const scrapeSequences = internalAction({
     let errorCount = 0;
     let globalArticleOrder = 0;
     const sequenceArticleCounts = new Map<string, number>();
+    const bookOrders = new Map<string, number>();
+    let currentBookOrderCounter = 0;
 
     // Process each article
     for (const { url, bookTitle, sequenceTitle } of urlsToProcess) {
+      // Track order of books
+      if (!bookOrders.has(bookTitle)) {
+        bookOrders.set(bookTitle, currentBookOrderCounter++);
+      }
+      const bookOrder = bookOrders.get(bookTitle)!;
+
       // Track order within sequence
       const sequenceKey = `${bookTitle}|${sequenceTitle}`;
       const sequenceOrder = (sequenceArticleCounts.get(sequenceKey) || 0) + 1;
@@ -86,6 +94,7 @@ export const scrapeSequences = internalAction({
             wordCount,
             articleOrder: globalArticleOrder,
             sequenceOrder,
+            bookOrder,
           });
         }
 
@@ -485,6 +494,7 @@ export const saveParagraph = internalMutation({
     wordCount: v.number(),
     articleOrder: v.number(),
     sequenceOrder: v.number(),
+    bookOrder: v.number(),
   },
   handler: async (ctx, args) => {
     await insertParagraph(ctx, args);
@@ -504,13 +514,12 @@ export const updateOrCreateParagraph = internalMutation({
     wordCount: v.number(),
     articleOrder: v.number(),
     sequenceOrder: v.number(),
+    bookOrder: v.number(),
   },
   handler: async (ctx, { existingId, ...data }) => {
     if (existingId) {
-      // Update existing document
       await ctx.db.replace(existingId, data);
     } else {
-      // Create new document
       await insertParagraph(ctx, data);
     }
   },
@@ -580,6 +589,7 @@ export const rescrapeArticle = internalMutation({
     const sequenceTitle = existingParagraphs[0].sequenceTitle;
     const articleOrder = existingParagraphs[0].articleOrder;
     const sequenceOrder = existingParagraphs[0].sequenceOrder;
+    const bookOrder = existingParagraphs[0].bookOrder;
     
     // Reset scraping progress for this URL
     const progress = await ctx.db
@@ -606,6 +616,7 @@ export const rescrapeArticle = internalMutation({
       existingIdsByIndex,
       articleOrder,
       sequenceOrder,
+      bookOrder,
     });
     
     return { 
@@ -624,8 +635,9 @@ export const rescrapeArticleAction = internalAction({
     existingIdsByIndex: v.optional(v.record(v.string(), v.id("paragraphs"))),
     articleOrder: v.number(),
     sequenceOrder: v.number(),
+    bookOrder: v.number(),
   },
-  handler: async (ctx, { url, bookTitle, sequenceTitle, existingIdsByIndex, articleOrder, sequenceOrder }) => {
+  handler: async (ctx, { url, bookTitle, sequenceTitle, existingIdsByIndex, articleOrder, sequenceOrder, bookOrder }) => {
     console.log(`Rescraping article: ${url}`);
     
     try {
@@ -663,6 +675,7 @@ export const rescrapeArticleAction = internalAction({
           wordCount,
           articleOrder,
           sequenceOrder,
+          bookOrder,
         });
         
         processedIndices.add(i);
