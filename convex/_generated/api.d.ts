@@ -8,9 +8,9 @@
  * @module
  */
 
+import type * as adminFunctions from "../adminFunctions.js";
 import type * as aggregates from "../aggregates.js";
 import type * as articles from "../articles.js";
-import type * as clearParagraphs from "../clearParagraphs.js";
 import type * as dbHelpers from "../dbHelpers.js";
 import type * as games from "../games.js";
 import type * as scraping from "../scraping.js";
@@ -33,9 +33,9 @@ import type {
  * ```
  */
 declare const fullApi: ApiFromModules<{
+  adminFunctions: typeof adminFunctions;
   aggregates: typeof aggregates;
   articles: typeof articles;
-  clearParagraphs: typeof clearParagraphs;
   dbHelpers: typeof dbHelpers;
   games: typeof games;
   scraping: typeof scraping;

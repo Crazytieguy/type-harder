@@ -118,17 +118,17 @@ export default function ParagraphSelector({
           <div className="flex items-center justify-between">
             <div className="flex-1">
               <div className="flex items-center justify-between text-sm mb-1.5">
-                <span className="font-medium">Overall Progress</span>
-                <span className="font-mono text-sm">{completionPercentage}%</span>
+                <span className="font-medium opacity-80">Overall Progress</span>
+                <span className="font-mono text-sm opacity-70">{completionPercentage}%</span>
               </div>
-              <div className="progress progress-primary h-2">
+              <div className="progress h-1.5">
                 <div
-                  className="progress-value"
+                  className="progress-value bg-primary/60"
                   style={{ width: `${completionPercentage}%` }}
                 />
               </div>
-              <div className="text-xs opacity-60 mt-1">
-                {booksHierarchy.completedParagraphs} / {booksHierarchy.totalParagraphs} paragraphs completed
+              <div className="text-xs opacity-50 mt-1">
+                {booksHierarchy.completedParagraphs} / {booksHierarchy.totalParagraphs} paragraphs
               </div>
             </div>
             {(selectedBook || selectedSequence || selectedArticle) && (
@@ -181,14 +181,14 @@ export default function ParagraphSelector({
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex-1 min-w-0">
                         <div className="font-medium text-sm line-clamp-1">{book.bookTitle}</div>
-                        <div className="progress progress-success h-1.5 mt-1.5">
+                        <div className="progress h-1 mt-1.5">
                           <div
-                            className="progress-value"
+                            className="progress-value bg-success/50"
                             style={{ width: `${bookProgress}%` }}
                           />
                         </div>
                       </div>
-                      <div className="badge badge-ghost font-mono text-xs flex-shrink-0">
+                      <div className="font-mono text-xs opacity-50 flex-shrink-0">
                         {bookCompletedCount}/{bookTotalCount}
                       </div>
                     </div>
@@ -341,22 +341,22 @@ export default function ParagraphSelector({
       )}
 
       {previewParagraph && (
-        <div className="card bg-primary text-primary-content">
+        <div className="card bg-base-200">
           <div className="card-body p-4">
             <div className="flex items-start justify-between gap-3 mb-2">
               <div className="flex-1 min-w-0">
-                <div className="text-xs opacity-80 line-clamp-1">
+                <div className="text-xs opacity-60 line-clamp-1">
                   {previewParagraph.bookTitle} → {previewParagraph.sequenceTitle}
                 </div>
                 <div className="font-medium line-clamp-1 mt-1">
                   {previewParagraph.articleTitle}
                 </div>
               </div>
-              <div className="badge badge-primary-content badge-sm font-mono flex-shrink-0">
+              <div className="badge badge-neutral badge-sm font-mono flex-shrink-0">
                 {previewParagraph.wordCount}w
               </div>
             </div>
-            <p className="text-sm opacity-90 line-clamp-3">
+            <p className="text-sm opacity-70 line-clamp-3">
               {previewParagraph.content}
             </p>
           </div>

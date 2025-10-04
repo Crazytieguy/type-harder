@@ -132,10 +132,10 @@ export default function RoomLobby({
         <h1 className="mt-0">Game Lobby</h1>
 
         <div className="not-prose mt-6">
-          <div className="card bg-gradient-to-br from-primary/20 to-secondary/20 border-2 border-primary/30 max-w-sm mx-auto">
+          <div className="card bg-base-300 border border-base-content/10 max-w-sm mx-auto">
             <div className="card-body p-6">
               <div className="text-sm font-medium opacity-70 mb-2">Room Code</div>
-              <div className="text-4xl font-mono font-bold tracking-[0.3em] text-primary">
+              <div className="text-4xl font-mono font-bold text-base-content">
                 {roomCode}
               </div>
               <button
@@ -156,7 +156,7 @@ export default function RoomLobby({
             <h2 className="card-title mb-4">
               <Users className="w-5 h-5" />
               Players
-              <div className="badge badge-primary ml-auto">{room.members.length}</div>
+              <div className="badge badge-neutral ml-auto">{room.members.length}</div>
             </h2>
 
             <div className="space-y-2">
@@ -354,12 +354,6 @@ export default function RoomLobby({
                   {!allReady && !isSoloRoom && (
                     <p className="text-center text-sm opacity-70 mt-3">
                       Waiting for all players to be ready...
-                    </p>
-                  )}
-
-                  {isSoloRoom && (
-                    <p className="text-center text-sm opacity-70 mt-3">
-                      Ready to start your solo race!
                     </p>
                   )}
 
