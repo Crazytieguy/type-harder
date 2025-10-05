@@ -2,13 +2,19 @@ import { v } from "convex/values";
 import { Id } from "./_generated/dataModel";
 import { query } from "./_generated/server";
 
-// Get books with sequences and articles hierarchy (optimized - no paragraph content)
+// Get books with sequences and articles hierarchy (optimized - uses articles metadata table)
 export const getBooksHierarchy = query({
   args: {},
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
 
-    let completedParagraphIds = new Set<Id<"paragraphs">>();
+    // Load all articles metadata (small table, ~327 records)
+    const allArticles = await ctx.db.query("articles").collect();
+
+    // Count completions per article for this user
+    const completionCountsByArticle = new Map<string, number>();
+    let totalCompletedParagraphs = 0;
+
     if (identity) {
       const user = await ctx.db
         .query("users")
@@ -20,17 +26,27 @@ export const getBooksHierarchy = query({
           .query("completions")
           .withIndex("by_user", (q) => q.eq("userId", user._id))
           .collect();
-        completedParagraphIds = new Set(userCompletions.map(c => c.paragraphId));
+
+        // Get paragraph details to map to articles
+        for (const completion of userCompletions) {
+          const paragraph = await ctx.db.get(completion.paragraphId);
+          if (paragraph) {
+            const count = completionCountsByArticle.get(paragraph.articleTitle) || 0;
+            completionCountsByArticle.set(paragraph.articleTitle, count + 1);
+            totalCompletedParagraphs++;
+          }
+        }
       }
     }
 
+    // Build hierarchy from articles metadata
     const bookMap = new Map<string, {
       bookTitle: string;
       bookOrder: number;
       sequences: Map<string, {
         sequenceTitle: string;
         sequenceOrder: number;
-        articles: Map<string, {
+        articles: Array<{
           articleTitle: string;
           articleUrl: string;
           articleOrder: number;
@@ -40,60 +56,55 @@ export const getBooksHierarchy = query({
       }>;
     }>();
 
-    for await (const para of ctx.db.query("paragraphs").order("asc")) {
-      if (!bookMap.has(para.bookTitle)) {
-        bookMap.set(para.bookTitle, {
-          bookTitle: para.bookTitle,
-          bookOrder: para.bookOrder,
+    for (const article of allArticles) {
+      if (!bookMap.has(article.bookTitle)) {
+        bookMap.set(article.bookTitle, {
+          bookTitle: article.bookTitle,
+          bookOrder: article.bookOrder,
           sequences: new Map(),
         });
       }
 
-      const book = bookMap.get(para.bookTitle)!;
-      if (!book.sequences.has(para.sequenceTitle)) {
-        book.sequences.set(para.sequenceTitle, {
-          sequenceTitle: para.sequenceTitle,
-          sequenceOrder: para.sequenceOrder,
-          articles: new Map(),
+      const book = bookMap.get(article.bookTitle)!;
+      if (!book.sequences.has(article.sequenceTitle)) {
+        book.sequences.set(article.sequenceTitle, {
+          sequenceTitle: article.sequenceTitle,
+          sequenceOrder: article.sequenceOrder,
+          articles: [],
         });
       }
 
-      const sequence = book.sequences.get(para.sequenceTitle)!;
-      if (!sequence.articles.has(para.articleTitle)) {
-        sequence.articles.set(para.articleTitle, {
-          articleTitle: para.articleTitle,
-          articleUrl: para.articleUrl,
-          articleOrder: para.articleOrder,
-          paragraphCount: 0,
-          completedCount: 0,
-        });
-      }
-
-      const article = sequence.articles.get(para.articleTitle)!;
-      article.paragraphCount++;
-      if (completedParagraphIds.has(para._id)) {
-        article.completedCount++;
-      }
+      const sequence = book.sequences.get(article.sequenceTitle)!;
+      sequence.articles.push({
+        articleTitle: article.articleTitle,
+        articleUrl: article.articleUrl,
+        articleOrder: article.articleOrder,
+        paragraphCount: article.paragraphCount,
+        completedCount: completionCountsByArticle.get(article.articleTitle) || 0,
+      });
     }
 
     const books = Array.from(bookMap.values()).map(book => ({
       bookTitle: book.bookTitle,
       bookOrder: book.bookOrder,
-      sequences: Array.from(book.sequences.values()).map(seq => ({
-        sequenceTitle: seq.sequenceTitle,
-        sequenceOrder: seq.sequenceOrder,
-        articles: Array.from(seq.articles.values()).sort((a, b) => a.articleOrder - b.articleOrder),
-        totalParagraphs: Array.from(seq.articles.values()).reduce((sum, a) => sum + a.paragraphCount, 0),
-        completedParagraphs: Array.from(seq.articles.values()).reduce((sum, a) => sum + a.completedCount, 0),
-      })).sort((a, b) => a.sequenceOrder - b.sequenceOrder),
+      sequences: Array.from(book.sequences.values()).map(seq => {
+        const sortedArticles = seq.articles.sort((a, b) => a.articleOrder - b.articleOrder);
+        return {
+          sequenceTitle: seq.sequenceTitle,
+          sequenceOrder: seq.sequenceOrder,
+          articles: sortedArticles,
+          totalParagraphs: sortedArticles.reduce((sum, a) => sum + a.paragraphCount, 0),
+          completedParagraphs: sortedArticles.reduce((sum, a) => sum + a.completedCount, 0),
+        };
+      }).sort((a, b) => a.sequenceOrder - b.sequenceOrder),
     })).sort((a, b) => a.bookOrder - b.bookOrder);
+
+    const totalParagraphs = allArticles.reduce((sum, a) => sum + a.paragraphCount, 0);
 
     return {
       books,
-      totalParagraphs: completedParagraphIds.size > 0
-        ? books.reduce((sum, b) => sum + b.sequences.reduce((s, seq) => s + seq.totalParagraphs, 0), 0)
-        : await ctx.db.query("paragraphs").collect().then(p => p.length),
-      completedParagraphs: completedParagraphIds.size,
+      totalParagraphs,
+      completedParagraphs: totalCompletedParagraphs,
     };
   },
 });

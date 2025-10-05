@@ -43,12 +43,18 @@ export async function updatePlayer(
 ) {
   const oldDoc = await ctx.db.get(id);
   if (!oldDoc) return;
-  
+
   await ctx.db.patch(id, updates);
   const newDoc = await ctx.db.get(id);
-  
+
   if (newDoc && (updates.finishedAt || updates.wpm)) {
-    await playerStatsByUser.replace(ctx, oldDoc, newDoc);
+    // Only replace if oldDoc had finishedAt (i.e., was already in aggregate)
+    // Otherwise insert for the first time
+    if (oldDoc.finishedAt !== undefined) {
+      await playerStatsByUser.replace(ctx, oldDoc, newDoc);
+    } else {
+      await playerStatsByUser.insert(ctx, newDoc);
+    }
   }
 }
 

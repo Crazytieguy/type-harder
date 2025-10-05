@@ -28,6 +28,19 @@ export default defineSchema({
     .index("by_book", ["bookOrder", "sequenceOrder", "articleOrder"]) // For book/sequence navigation
     .index("by_sequence", ["bookTitle", "sequenceTitle", "articleOrder"]), // For sequence browsing
 
+  articles: defineTable({
+    bookTitle: v.string(),
+    bookOrder: v.number(),
+    sequenceTitle: v.string(),
+    sequenceOrder: v.number(),
+    articleTitle: v.string(),
+    articleUrl: v.string(),
+    articleOrder: v.number(),
+    paragraphCount: v.number(),
+  })
+    .index("by_article_title", ["articleTitle"])
+    .index("by_book_sequence", ["bookOrder", "sequenceOrder", "articleOrder"]),
+
   rooms: defineTable({
     roomCode: v.string(),
     hostId: v.id("users"),

@@ -129,6 +129,18 @@ export const processBatch = internalAction({
           });
         }
 
+        // Update article metadata
+        await ctx.runMutation(internal.scraping.upsertArticleMetadata, {
+          bookTitle: article.bookTitle,
+          bookOrder: article.bookOrder,
+          sequenceTitle: article.sequenceTitle,
+          sequenceOrder: article.sequenceOrder,
+          articleTitle: title,
+          articleUrl: finalUrl,
+          articleOrder: article.articleOrder,
+          paragraphCount: paragraphs.length,
+        });
+
         // Mark as completed
         await ctx.runMutation(internal.scraping.updateScrapingProgress, {
           url: article.url,
@@ -615,6 +627,33 @@ export const saveParagraph = internalMutation({
   },
   handler: async (ctx, args) => {
     await insertParagraph(ctx, args);
+  },
+});
+
+export const upsertArticleMetadata = internalMutation({
+  args: {
+    bookTitle: v.string(),
+    bookOrder: v.number(),
+    sequenceTitle: v.string(),
+    sequenceOrder: v.number(),
+    articleTitle: v.string(),
+    articleUrl: v.string(),
+    articleOrder: v.number(),
+    paragraphCount: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query("articles")
+      .withIndex("by_article_title", (q) => q.eq("articleTitle", args.articleTitle))
+      .unique();
+
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        paragraphCount: args.paragraphCount,
+      });
+    } else {
+      await ctx.db.insert("articles", args);
+    }
   },
 });
 

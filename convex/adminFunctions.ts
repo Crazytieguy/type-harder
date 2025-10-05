@@ -103,3 +103,68 @@ export const getDatabaseStats = internalQuery({
     };
   },
 });
+
+export const migrateArticlesMetadata = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    console.log("Starting articles metadata migration...");
+
+    // Clear existing articles
+    const existingArticles = await ctx.db.query("articles").collect();
+    for (const article of existingArticles) {
+      await ctx.db.delete(article._id);
+    }
+
+    // Group paragraphs by article
+    const articleMap = new Map<string, {
+      bookTitle: string;
+      bookOrder: number;
+      sequenceTitle: string;
+      sequenceOrder: number;
+      articleTitle: string;
+      articleUrl: string;
+      articleOrder: number;
+      paragraphCount: number;
+    }>();
+
+    let processedCount = 0;
+    for await (const para of ctx.db.query("paragraphs").order("asc")) {
+      const key = para.articleTitle;
+
+      if (!articleMap.has(key)) {
+        articleMap.set(key, {
+          bookTitle: para.bookTitle,
+          bookOrder: para.bookOrder,
+          sequenceTitle: para.sequenceTitle,
+          sequenceOrder: para.sequenceOrder,
+          articleTitle: para.articleTitle,
+          articleUrl: para.articleUrl,
+          articleOrder: para.articleOrder,
+          paragraphCount: 0,
+        });
+      }
+
+      const article = articleMap.get(key)!;
+      article.paragraphCount++;
+      processedCount++;
+
+      if (processedCount % 1000 === 0) {
+        console.log(`Processed ${processedCount} paragraphs...`);
+      }
+    }
+
+    // Insert all articles
+    let insertedCount = 0;
+    for (const article of articleMap.values()) {
+      await ctx.db.insert("articles", article);
+      insertedCount++;
+    }
+
+    console.log(`Migration complete: ${insertedCount} articles created from ${processedCount} paragraphs`);
+
+    return {
+      paragraphsProcessed: processedCount,
+      articlesCreated: insertedCount,
+    };
+  },
+});
