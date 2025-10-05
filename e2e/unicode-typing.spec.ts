@@ -77,7 +77,7 @@ async function signInAndCreateRoom(page: Page, convex: ConvexTestingHelper): Pro
   await page.getByRole("textbox", { name: "Email address" }).fill("claude+clerk_test@example.com");
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("textbox", { name: "Enter verification code" }).pressSequentially("424242");
-  await page.waitForSelector('button[aria-label="Open user button"]');
+  await page.waitForSelector('button[aria-label="Open user button"]', { timeout: 10000 });
 
   const users = await convex.query(api.users.listUsers, {});
   const testUser = users.find((u) => u.name === "Claude Code");
