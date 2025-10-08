@@ -8,8 +8,10 @@ export const getBooksHierarchy = query({
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
 
-    // Load all articles metadata (small table, ~327 records)
-    const allArticles = await ctx.db.query("articles").collect();
+    const allArticles = await ctx.db
+      .query("articles")
+      .withIndex("by_book_sequence")
+      .collect();
 
     // Count completions per article for this user
     const completionCountsByArticle = new Map<string, number>();
@@ -27,9 +29,11 @@ export const getBooksHierarchy = query({
           .withIndex("by_user", (q) => q.eq("userId", user._id))
           .collect();
 
-        // Get paragraph details to map to articles
-        for (const completion of userCompletions) {
-          const paragraph = await ctx.db.get(completion.paragraphId);
+        const paragraphs = await Promise.all(
+          userCompletions.map(c => ctx.db.get(c.paragraphId))
+        );
+
+        for (const paragraph of paragraphs) {
           if (paragraph) {
             const count = completionCountsByArticle.get(paragraph.articleTitle) || 0;
             completionCountsByArticle.set(paragraph.articleTitle, count + 1);
@@ -105,87 +109,6 @@ export const getBooksHierarchy = query({
       books,
       totalParagraphs,
       completedParagraphs: totalCompletedParagraphs,
-    };
-  },
-});
-
-// Legacy query for compatibility - now returns flattened article list
-export const getArticles = query({
-  args: {},
-  handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity();
-
-    let completedParagraphIds = new Set<Id<"paragraphs">>();
-    if (identity) {
-      const user = await ctx.db
-        .query("users")
-        .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
-        .unique();
-
-      if (user) {
-        const userCompletions = await ctx.db
-          .query("completions")
-          .withIndex("by_user", (q) => q.eq("userId", user._id))
-          .collect();
-        completedParagraphIds = new Set(userCompletions.map((c) => c.paragraphId));
-      }
-    }
-
-    const articleMap = new Map<
-      string,
-      {
-        bookTitle: string;
-        sequenceTitle: string;
-        articleTitle: string;
-        articleUrl: string;
-        articleOrder: number;
-        paragraphCount: number;
-        completedCount: number;
-      }
-    >();
-
-    let totalParagraphs = 0;
-    for await (const para of ctx.db.query("paragraphs").order("asc")) {
-      totalParagraphs++;
-      if (!articleMap.has(para.articleTitle)) {
-        articleMap.set(para.articleTitle, {
-          bookTitle: para.bookTitle,
-          sequenceTitle: para.sequenceTitle,
-          articleTitle: para.articleTitle,
-          articleUrl: para.articleUrl,
-          articleOrder: para.articleOrder,
-          paragraphCount: 0,
-          completedCount: 0,
-        });
-      }
-
-      const article = articleMap.get(para.articleTitle)!;
-      article.paragraphCount++;
-      if (completedParagraphIds.has(para._id)) {
-        article.completedCount++;
-      }
-    }
-
-    const articles = Array.from(articleMap.values())
-      .map((article) => ({
-        bookTitle: article.bookTitle,
-        sequenceTitle: article.sequenceTitle,
-        articleTitle: article.articleTitle,
-        articleUrl: article.articleUrl,
-        articleOrder: article.articleOrder,
-        totalParagraphs: article.paragraphCount,
-        completedParagraphs: article.completedCount,
-        percentComplete:
-          article.paragraphCount > 0
-            ? Math.round((article.completedCount / article.paragraphCount) * 100)
-            : 0,
-      }))
-      .sort((a, b) => a.articleOrder - b.articleOrder);
-
-    return {
-      articles,
-      userCompletedCount: completedParagraphIds.size,
-      totalParagraphs,
     };
   },
 });

@@ -8,7 +8,6 @@
  * @module
  */
 
-import type * as adminFunctions from "../adminFunctions.js";
 import type * as aggregates from "../aggregates.js";
 import type * as articles from "../articles.js";
 import type * as dbHelpers from "../dbHelpers.js";
@@ -33,7 +32,6 @@ import type {
  * ```
  */
 declare const fullApi: ApiFromModules<{
-  adminFunctions: typeof adminFunctions;
   aggregates: typeof aggregates;
   articles: typeof articles;
   dbHelpers: typeof dbHelpers;

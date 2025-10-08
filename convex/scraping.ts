@@ -187,16 +187,6 @@ export const processBatch = internalAction({
   },
 });
 
-// Legacy function for backward compatibility
-export const scrapeSequences = internalAction({
-  args: {
-    pageLimit: v.optional(v.number()),
-  },
-  handler: async (ctx, args): Promise<{ queued: number }> => {
-    return await ctx.runAction(internal.scraping.initializeScraping, args);
-  },
-});
-
 function extractArticleUrls(
   tocMarkdown: string,
 ): Array<{ url: string; bookTitle: string; sequenceTitle: string }> {
@@ -588,14 +578,22 @@ export const getPendingArticles = internalQuery({
       .withIndex("by_status", (q) => q.eq("status", "pending"))
       .take(limit);
 
-    return pending.map(p => ({
-      url: p.url,
-      bookTitle: p.bookTitle!,
-      sequenceTitle: p.sequenceTitle!,
-      articleOrder: p.articleOrder!,
-      sequenceOrder: p.sequenceOrder!,
-      bookOrder: p.bookOrder!,
-    }));
+    return pending
+      .filter(p =>
+        p.bookTitle !== undefined &&
+        p.sequenceTitle !== undefined &&
+        p.articleOrder !== undefined &&
+        p.sequenceOrder !== undefined &&
+        p.bookOrder !== undefined
+      )
+      .map(p => ({
+        url: p.url,
+        bookTitle: p.bookTitle!,
+        sequenceTitle: p.sequenceTitle!,
+        articleOrder: p.articleOrder!,
+        sequenceOrder: p.sequenceOrder!,
+        bookOrder: p.bookOrder!,
+      }));
   },
 });
 
@@ -869,5 +867,18 @@ export const rescrapeArticleAction = internalAction({
       
       throw error;
     }
+  },
+});
+
+export const triggerRescrape = internalMutation({
+  args: { pageLimit: v.optional(v.number()) },
+  handler: async (ctx, { pageLimit }) => {
+    await ctx.scheduler.runAfter(
+      0,
+      internal.scraping.initializeScraping,
+      pageLimit ? { pageLimit } : {}
+    );
+
+    return { message: "Batch scraping scheduled - will process in chunks of 20 articles" };
   },
 });
