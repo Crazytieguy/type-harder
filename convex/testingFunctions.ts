@@ -326,62 +326,28 @@ export const countParagraphs = testingQuery(async (ctx) => {
 });
 
 export const cleanDatabase = testingMutation(async (ctx) => {
-  const rooms = await ctx.db.query("rooms").collect();
-  for (const room of rooms) {
-    await ctx.db.delete(room._id);
-  }
+  const tables = ["rooms", "games", "players", "roomMembers", "completions", "scrapingProgress"] as const;
+  const deletedCounts: Record<string, number> = {};
 
-  const games = await ctx.db.query("games").collect();
-  for (const game of games) {
-    await ctx.db.delete(game._id);
-  }
-
-  const players = await ctx.db.query("players").collect();
-  for (const player of players) {
-    await ctx.db.delete(player._id);
-  }
-
-  const roomMembers = await ctx.db.query("roomMembers").collect();
-  for (const member of roomMembers) {
-    await ctx.db.delete(member._id);
-  }
-
-  const completions = await ctx.db.query("completions").collect();
-  for (const completion of completions) {
-    await ctx.db.delete(completion._id);
+  for (const table of tables) {
+    const records = await ctx.db.query(table).collect();
+    await Promise.all(records.map(r => ctx.db.delete(r._id)));
+    deletedCounts[table] = records.length;
   }
 
   const testParagraphs = await ctx.db.query("paragraphs").collect();
-  for (const para of testParagraphs) {
-    if (
-      para.bookTitle === "Test Book" ||
-      para.bookTitle === "Test Book - Rationality"
-    ) {
-      await ctx.db.delete(para._id);
-    }
-  }
-
-  const scrapingProgress = await ctx.db.query("scrapingProgress").collect();
-  for (const progress of scrapingProgress) {
-    await ctx.db.delete(progress._id);
-  }
+  const testParagraphsToDelete = testParagraphs.filter(
+    p => p.bookTitle === "Test Book" || p.bookTitle === "Test Book - Rationality"
+  );
+  await Promise.all(testParagraphsToDelete.map(p => ctx.db.delete(p._id)));
 
   await paragraphsByWordCount.clear(ctx, { namespace: undefined });
 
   return {
     message: "Database cleaned",
     deleted: {
-      rooms: rooms.length,
-      games: games.length,
-      players: players.length,
-      roomMembers: roomMembers.length,
-      completions: completions.length,
-      testParagraphs: testParagraphs.filter(
-        (p) =>
-          p.bookTitle === "Test Book" ||
-          p.bookTitle === "Test Book - Rationality"
-      ).length,
-      scrapingProgress: scrapingProgress.length,
+      ...deletedCounts,
+      testParagraphs: testParagraphsToDelete.length,
     },
   };
 });
