@@ -97,8 +97,18 @@ export default defineSchema({
   completions: defineTable({
     userId: v.id("users"),
     paragraphId: v.id("paragraphs"),
+    articleTitle: v.string(),
     completedAt: v.number(),
   })
     .index("by_user_and_paragraph", ["userId", "paragraphId"])
-    .index("by_user", ["userId"]),
+    .index("by_user", ["userId"])
+    .index("by_user_and_article", ["userId", "articleTitle"]),
+
+  articleCompletions: defineTable({
+    userId: v.id("users"),
+    articleTitle: v.string(),
+    completedCount: v.number(),
+  })
+    .index("by_user", ["userId"])
+    .index("by_user_and_article", ["userId", "articleTitle"]),
 });

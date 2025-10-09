@@ -326,7 +326,7 @@ export const countParagraphs = testingQuery(async (ctx) => {
 });
 
 export const cleanDatabase = testingMutation(async (ctx) => {
-  const tables = ["rooms", "games", "players", "roomMembers", "completions", "scrapingProgress"] as const;
+  const tables = ["rooms", "games", "players", "roomMembers", "completions", "articleCompletions", "scrapingProgress"] as const;
   const deletedCounts: Record<string, number> = {};
 
   for (const table of tables) {

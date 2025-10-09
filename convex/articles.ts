@@ -24,21 +24,17 @@ export const getBooksHierarchy = query({
         .unique();
 
       if (user) {
-        const userCompletions = await ctx.db
-          .query("completions")
+        const userArticleCompletions = await ctx.db
+          .query("articleCompletions")
           .withIndex("by_user", (q) => q.eq("userId", user._id))
           .collect();
 
-        const paragraphs = await Promise.all(
-          userCompletions.map(c => ctx.db.get(c.paragraphId))
-        );
-
-        for (const paragraph of paragraphs) {
-          if (paragraph) {
-            const count = completionCountsByArticle.get(paragraph.articleTitle) || 0;
-            completionCountsByArticle.set(paragraph.articleTitle, count + 1);
-            totalCompletedParagraphs++;
-          }
+        for (const articleCompletion of userArticleCompletions) {
+          completionCountsByArticle.set(
+            articleCompletion.articleTitle,
+            articleCompletion.completedCount
+          );
+          totalCompletedParagraphs += articleCompletion.completedCount;
         }
       }
     }
@@ -179,7 +175,6 @@ export const getNextUncompletedParagraph = query({
   handler: async (ctx) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
-      // If not authenticated, just return the first paragraph
       const firstParagraph = await ctx.db
         .query("paragraphs")
         .order("asc")
@@ -200,26 +195,51 @@ export const getNextUncompletedParagraph = query({
       return firstParagraph ? { paragraphId: firstParagraph._id, paragraph: firstParagraph } : null;
     }
 
-    // Get user's completions from completions table
-    const userCompletions = await ctx.db
-      .query("completions")
+    // O(327 max) - load all article completions for user
+    const userArticleCompletions = await ctx.db
+      .query("articleCompletions")
       .withIndex("by_user", (q) => q.eq("userId", user._id))
       .collect();
 
-    const completedParagraphIds = new Set<Id<"paragraphs">>(
-      userCompletions.map(c => c.paragraphId)
+    const articleCompletionMap = new Map(
+      userArticleCompletions.map(ac => [ac.articleTitle, ac.completedCount])
     );
 
-    // Use indexed query to iterate through paragraphs in global order
-    // This avoids loading all paragraphs into memory
-    const paragraphsQuery = ctx.db
-      .query("paragraphs")
-      .withIndex("by_global_order")
+    // O(327 max with early return) - find first incomplete article
+    const articlesQuery = ctx.db
+      .query("articles")
+      .withIndex("by_book_sequence")
       .order("asc");
 
-    for await (const seq of paragraphsQuery) {
-      if (!completedParagraphIds.has(seq._id)) {
-        return { paragraphId: seq._id, paragraph: seq };
+    for await (const article of articlesQuery) {
+      const completedCount = articleCompletionMap.get(article.articleTitle) || 0;
+
+      if (completedCount < article.paragraphCount) {
+        // Found incomplete article! Now find specific paragraph
+        const paragraphs = await ctx.db
+          .query("paragraphs")
+          .withIndex("by_article", (q) => q.eq("articleTitle", article.articleTitle))
+          .order("asc")
+          .collect();
+
+        // Get user's completions for this article
+        const completionsInArticle = await ctx.db
+          .query("completions")
+          .withIndex("by_user_and_article", (q) =>
+            q.eq("userId", user._id).eq("articleTitle", article.articleTitle)
+          )
+          .collect();
+
+        const completedParagraphIds = new Set(
+          completionsInArticle.map(c => c.paragraphId)
+        );
+
+        // Find first uncompleted paragraph
+        for (const paragraph of paragraphs) {
+          if (!completedParagraphIds.has(paragraph._id)) {
+            return { paragraphId: paragraph._id, paragraph };
+          }
+        }
       }
     }
 

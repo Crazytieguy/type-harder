@@ -752,8 +752,29 @@ export const updateProgress = mutation({
         await ctx.db.insert("completions", {
           userId: player.userId,
           paragraphId: activeGame.selectedParagraphId,
+          articleTitle: paragraph.articleTitle,
           completedAt: finishedAt,
         });
+
+        // Update article-level completion count
+        const existingArticleCompletion = await ctx.db
+          .query("articleCompletions")
+          .withIndex("by_user_and_article", (q) =>
+            q.eq("userId", player.userId).eq("articleTitle", paragraph.articleTitle)
+          )
+          .unique();
+
+        if (existingArticleCompletion) {
+          await ctx.db.patch(existingArticleCompletion._id, {
+            completedCount: existingArticleCompletion.completedCount + 1,
+          });
+        } else {
+          await ctx.db.insert("articleCompletions", {
+            userId: player.userId,
+            articleTitle: paragraph.articleTitle,
+            completedCount: 1,
+          });
+        }
       }
 
       // Check if all players still in the room have finished
