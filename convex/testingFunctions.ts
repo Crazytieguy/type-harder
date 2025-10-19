@@ -1,8 +1,7 @@
 import { customMutation, customQuery } from "convex-helpers/server/customFunctions";
-import { action, internalMutation, mutation, query } from "./_generated/server";
+import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { paragraphsByWordCount } from "./aggregates";
-import { internal } from "./_generated/api";
 
 const testingMutation = customMutation(mutation, {
   args: {},
@@ -285,44 +284,6 @@ export const populateAggregates = testingMutation(async (ctx) => {
   return { message: `Populated aggregates for ${paragraphs.length} paragraphs` };
 });
 
-// Internal mutation to populate aggregates in batches
-export const populateAggregatesBatchInternal = internalMutation({
-  args: { skip: v.number(), take: v.number() },
-  handler: async (ctx, { skip, take }) => {
-    const allParagraphs = await ctx.db.query("paragraphs").collect();
-    const batch = allParagraphs.slice(skip, skip + take);
-
-    for (const paragraph of batch) {
-      await paragraphsByWordCount.insert(ctx, paragraph);
-    }
-
-    return batch.length;
-  },
-});
-
-// Action to populate aggregates in batches
-export const populateAggregatesBatched = action({
-  args: {},
-  handler: async (ctx): Promise<{ message: string; totalPopulated: number }> => {
-    const totalParagraphs = 9001; // We know from earlier count
-    const batchSize = 500;
-    let totalPopulated = 0;
-
-    for (let skip = 0; skip < totalParagraphs; skip += batchSize) {
-      const count: number = await ctx.runMutation(
-        internal.testingFunctions.populateAggregatesBatchInternal,
-        { skip, take: batchSize }
-      );
-      totalPopulated += count;
-    }
-
-    return {
-      message: `Populated aggregates in batches`,
-      totalPopulated,
-    };
-  },
-});
-
 export const checkAggregateCount = testingQuery(async (ctx) => {
   const count = await paragraphsByWordCount.count(ctx, {
     namespace: undefined,
@@ -389,140 +350,4 @@ export const cleanDatabase = testingMutation(async (ctx) => {
       testParagraphs: testParagraphsToDelete.length,
     },
   };
-});
-
-// Internal mutation to deduplicate a single article's paragraphs
-export const deduplicateSingleArticleInternal = internalMutation({
-  args: { articleTitle: v.string() },
-  handler: async (ctx, { articleTitle }) => {
-    const paragraphs = await ctx.db
-      .query("paragraphs")
-      .withIndex("by_article", (q) => q.eq("articleTitle", articleTitle))
-      .collect();
-
-    const byIndex = new Map<number, typeof paragraphs>();
-    for (const p of paragraphs) {
-      const existing = byIndex.get(p.indexInArticle);
-      if (!existing) {
-        byIndex.set(p.indexInArticle, [p]);
-      } else {
-        existing.push(p);
-      }
-    }
-
-    let duplicatesDeleted = 0;
-
-    for (const [_index, paras] of byIndex.entries()) {
-      if (paras.length > 1) {
-        paras.sort((a, b) => a._creationTime - b._creationTime);
-        const toDelete = paras.slice(1);
-
-        for (const p of toDelete) {
-          await ctx.db.delete(p._id);
-          duplicatesDeleted++;
-        }
-      }
-    }
-
-    // Update article.paragraphCount
-    const article = await ctx.db
-      .query("articles")
-      .withIndex("by_article_title", (q) => q.eq("articleTitle", articleTitle))
-      .unique();
-
-    if (article) {
-      const correctCount = byIndex.size;
-      if (correctCount !== article.paragraphCount) {
-        await ctx.db.patch(article._id, { paragraphCount: correctCount });
-      }
-    }
-
-    return duplicatesDeleted;
-  },
-});
-
-// Internal mutation to clean up orphaned completions
-export const cleanupOrphanedCompletionsInternal = internalMutation({
-  args: {},
-  handler: async (ctx) => {
-    const allParagraphs = await ctx.db.query("paragraphs").collect();
-    const validIds = new Set(allParagraphs.map(p => p._id));
-
-    const completions = await ctx.db.query("completions").collect();
-    let deleted = 0;
-    for (const c of completions) {
-      if (!validIds.has(c.paragraphId)) {
-        await ctx.db.delete(c._id);
-        deleted++;
-      }
-    }
-
-    return deleted;
-  },
-});
-
-// Internal mutation to clear all articleCompletions
-export const clearArticleCompletionsInternal = internalMutation({
-  args: {},
-  handler: async (ctx) => {
-    const articleCompletions = await ctx.db.query("articleCompletions").collect();
-    for (const ac of articleCompletions) {
-      await ctx.db.delete(ac._id);
-    }
-    return articleCompletions.length;
-  },
-});
-
-// Action to orchestrate the full deduplication process
-export const deduplicateParagraphs = action({
-  args: {},
-  handler: async (ctx): Promise<{
-    message: string;
-    duplicatesDeleted: number;
-    invalidCompletionsDeleted: number;
-    articleCompletionsCleared: number;
-    articlesProcessed: number;
-  }> => {
-    // Get all articles
-    const articles: Array<{ articleTitle: string }> = await ctx.runMutation(internal.testingFunctions.getAllArticlesInternal, {});
-
-    let totalDuplicatesDeleted = 0;
-
-    // Process each article one at a time
-    for (const article of articles) {
-      const deleted: number = await ctx.runMutation(
-        internal.testingFunctions.deduplicateSingleArticleInternal,
-        { articleTitle: article.articleTitle }
-      );
-      totalDuplicatesDeleted += deleted;
-    }
-
-    // Clean up orphaned completions
-    const invalidCompletionsDeleted: number = await ctx.runMutation(
-      internal.testingFunctions.cleanupOrphanedCompletionsInternal,
-      {}
-    );
-
-    // Clear articleCompletions
-    const articleCompletionsCleared: number = await ctx.runMutation(
-      internal.testingFunctions.clearArticleCompletionsInternal,
-      {}
-    );
-
-    return {
-      message: "Deduplication complete",
-      duplicatesDeleted: totalDuplicatesDeleted,
-      invalidCompletionsDeleted,
-      articleCompletionsCleared,
-      articlesProcessed: articles.length,
-    };
-  },
-});
-
-// Internal mutation to get all articles
-export const getAllArticlesInternal = internalMutation({
-  args: {},
-  handler: async (ctx) => {
-    return await ctx.db.query("articles").collect();
-  },
 });
