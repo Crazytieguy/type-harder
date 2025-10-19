@@ -20,10 +20,26 @@ export default defineSchema({
     wordCount: v.number(),
     articleOrder: v.number(), // Global article order from readthesequences.com
     sequenceOrder: v.number(), // Order of article within its sequence
+    bookOrder: v.number(), // Order of book (0 for Mere Reality, 1 for Map and Territory, etc.)
   })
     .index("by_article", ["articleTitle", "indexInArticle"]) // For article queries
     .index("by_word_count", ["wordCount"]) // For random selection with filtering
-    .index("by_global_order", ["articleOrder", "indexInArticle"]), // For sequential progression
+    .index("by_global_order", ["articleOrder", "indexInArticle"]) // For sequential progression
+    .index("by_book", ["bookOrder", "sequenceOrder", "articleOrder"]) // For book/sequence navigation
+    .index("by_sequence", ["bookTitle", "sequenceTitle", "articleOrder"]), // For sequence browsing
+
+  articles: defineTable({
+    bookTitle: v.string(),
+    bookOrder: v.number(),
+    sequenceTitle: v.string(),
+    sequenceOrder: v.number(),
+    articleTitle: v.string(),
+    articleUrl: v.string(),
+    articleOrder: v.number(),
+    paragraphCount: v.number(),
+  })
+    .index("by_article_title", ["articleTitle"])
+    .index("by_book_sequence", ["bookOrder", "sequenceOrder", "articleOrder"]),
 
   rooms: defineTable({
     roomCode: v.string(),
@@ -69,13 +85,30 @@ export default defineSchema({
     ),
     lastProcessedAt: v.optional(v.number()),
     errorMessage: v.optional(v.string()),
-  }).index("by_url", ["url"]),
+    bookTitle: v.optional(v.string()),
+    sequenceTitle: v.optional(v.string()),
+    articleOrder: v.optional(v.number()),
+    sequenceOrder: v.optional(v.number()),
+    bookOrder: v.optional(v.number()),
+  })
+    .index("by_url", ["url"])
+    .index("by_status", ["status"]),
 
   completions: defineTable({
     userId: v.id("users"),
     paragraphId: v.id("paragraphs"),
+    articleTitle: v.string(),
     completedAt: v.number(),
   })
     .index("by_user_and_paragraph", ["userId", "paragraphId"])
-    .index("by_user", ["userId"]),
+    .index("by_user", ["userId"])
+    .index("by_user_and_article", ["userId", "articleTitle"]),
+
+  articleCompletions: defineTable({
+    userId: v.id("users"),
+    articleTitle: v.string(),
+    completedCount: v.number(),
+  })
+    .index("by_user", ["userId"])
+    .index("by_user_and_article", ["userId", "articleTitle"]),
 });
