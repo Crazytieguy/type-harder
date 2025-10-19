@@ -1,6 +1,6 @@
 import { useQuery } from "convex/react";
 import { BookOpen, CheckCircle, ChevronRight, RotateCcw } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
 
@@ -16,15 +16,36 @@ export default function ParagraphSelector({
   onModeChange,
 }: ParagraphSelectorProps) {
   const [mode, setMode] = useState<"random" | "next" | "choose">("random");
-  const [selectedBook, setSelectedBook] = useState<string | null>(null);
-  const [selectedSequence, setSelectedSequence] = useState<string | null>(null);
-  const [selectedArticle, setSelectedArticle] = useState<string | null>(null);
+  const [selectedBook, setSelectedBook] = useState<string | null>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("selectedBook");
+    }
+    return null;
+  });
+  const [selectedSequence, setSelectedSequence] = useState<string | null>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("selectedSequence");
+    }
+    return null;
+  });
+  const [selectedArticle, setSelectedArticle] = useState<string | null>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("selectedArticle");
+    }
+    return null;
+  });
 
+  // Always fetch booksHierarchy - it's cacheable and lightweight
   const booksHierarchy = useQuery(api.articles.getBooksHierarchy);
+  const userCompletions = useQuery(
+    api.articles.getUserArticleCompletions,
+    mode === "choose" ? {} : "skip"
+  );
   const articleParagraphs = useQuery(
     api.articles.getArticleParagraphs,
-    selectedArticle ? { articleTitle: selectedArticle } : "skip"
+    selectedArticle && mode === "choose" ? { articleTitle: selectedArticle } : "skip"
   );
+  // Always fetch to determine if Continue tab should show
   const nextUncompleted = useQuery(api.articles.getNextUncompletedParagraph);
   const selectedParagraphDetails = useQuery(
     api.articles.getParagraphById,
@@ -39,6 +60,78 @@ export default function ParagraphSelector({
     }
   }, [selectedParagraphDetails, mode]);
 
+  // Consolidated localStorage sync
+  useEffect(() => {
+    if (selectedBook) {
+      localStorage.setItem("selectedBook", selectedBook);
+    } else {
+      localStorage.removeItem("selectedBook");
+    }
+
+    if (selectedSequence) {
+      localStorage.setItem("selectedSequence", selectedSequence);
+    } else {
+      localStorage.removeItem("selectedSequence");
+    }
+
+    if (selectedArticle) {
+      localStorage.setItem("selectedArticle", selectedArticle);
+    } else {
+      localStorage.removeItem("selectedArticle");
+    }
+  }, [selectedBook, selectedSequence, selectedArticle]);
+
+  // Validate localStorage selections against actual database data (one-time on mount)
+  const hasValidated = useRef(false);
+  useEffect(() => {
+    if (!booksHierarchy || hasValidated.current) return;
+    hasValidated.current = true;
+
+    // Validate selectedBook
+    if (selectedBook) {
+      const bookExists = booksHierarchy.books.some(b => b.bookTitle === selectedBook);
+      if (!bookExists) {
+        setSelectedBook(null);
+        setSelectedSequence(null);
+        setSelectedArticle(null);
+        return;
+      }
+
+      // Validate selectedSequence
+      if (selectedSequence) {
+        const book = booksHierarchy.books.find(b => b.bookTitle === selectedBook);
+        const sequenceExists = book?.sequences.some(s => s.sequenceTitle === selectedSequence);
+        if (!sequenceExists) {
+          setSelectedSequence(null);
+          setSelectedArticle(null);
+          return;
+        }
+
+        // Validate selectedArticle
+        if (selectedArticle) {
+          const sequence = book?.sequences.find(s => s.sequenceTitle === selectedSequence);
+          const articleExists = sequence?.articles.some(a => a.articleTitle === selectedArticle);
+          if (!articleExists) {
+            setSelectedArticle(null);
+          }
+        }
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [booksHierarchy]);
+
+  // Handle next mode paragraph selection after query loads
+  useEffect(() => {
+    if (mode === "next" && nextUncompleted) {
+      onSelectParagraph(nextUncompleted.paragraphId);
+      setSelectedBook(nextUncompleted.paragraph.bookTitle);
+      setSelectedSequence(nextUncompleted.paragraph.sequenceTitle);
+      setSelectedArticle(nextUncompleted.paragraph.articleTitle);
+    }
+    // onSelectParagraph is a stable callback from parent, excluding to avoid unnecessary re-runs
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, nextUncompleted]);
+
   const handleModeChange = (newMode: "random" | "next" | "choose") => {
     setMode(newMode);
     onModeChange?.(newMode);
@@ -47,14 +140,10 @@ export default function ParagraphSelector({
       setSelectedBook(null);
       setSelectedSequence(null);
       setSelectedArticle(null);
-    } else if (newMode === "next" && nextUncompleted) {
-      onSelectParagraph(nextUncompleted.paragraphId);
-      setSelectedBook(nextUncompleted.paragraph.bookTitle);
-      setSelectedSequence(nextUncompleted.paragraph.sequenceTitle);
-      setSelectedArticle(nextUncompleted.paragraph.articleTitle);
     } else if (newMode === "choose") {
       onSelectParagraph(null);
     }
+    // "next" mode is handled by useEffect above
   };
 
   const handleReset = () => {
@@ -64,23 +153,15 @@ export default function ParagraphSelector({
     onSelectParagraph(null);
   };
 
-  if (!booksHierarchy) {
-    return (
-      <div className="flex items-center justify-center p-8">
-        <div className="loading loading-spinner loading-lg text-primary" />
-      </div>
-    );
-  }
-
   const previewParagraph =
     mode === "next" && nextUncompleted
       ? nextUncompleted.paragraph
       : selectedParagraphDetails;
 
   const completionPercentage =
-    booksHierarchy.totalParagraphs > 0
+    userCompletions && booksHierarchy && booksHierarchy.totalParagraphs > 0
       ? Math.round(
-          (booksHierarchy.completedParagraphs / booksHierarchy.totalParagraphs) * 100
+          (userCompletions.totalCompleted / booksHierarchy.totalParagraphs) * 100
         )
       : 0;
 
@@ -115,226 +196,282 @@ export default function ParagraphSelector({
 
       {mode === "choose" && (
         <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex-1">
-              <div className="flex items-center justify-between text-sm mb-1.5">
-                <span className="font-medium opacity-80">Overall Progress</span>
-                <span className="font-mono text-sm opacity-70">{completionPercentage}%</span>
-              </div>
-              <div className="progress h-1.5">
-                <div
-                  className="progress-value bg-primary/60"
-                  style={{ width: `${completionPercentage}%` }}
-                />
-              </div>
-              <div className="text-xs opacity-50 mt-1">
-                {booksHierarchy.completedParagraphs} / {booksHierarchy.totalParagraphs} paragraphs
-              </div>
-            </div>
-            {(selectedBook || selectedSequence || selectedArticle) && (
-              <button
-                type="button"
-                className="btn btn-sm btn-ghost ml-3"
-                onClick={handleReset}
-              >
-                <RotateCcw className="w-4 h-4" />
-              </button>
-            )}
-          </div>
-
-          <div className="divider my-2" />
-
-          {booksHierarchy.books.length === 0 ? (
-            <div className="text-center py-12">
-              <div className="w-16 h-16 bg-base-300 rounded-full flex items-center justify-center mx-auto mb-4">
-                <BookOpen className="w-8 h-8 opacity-50" />
-              </div>
-              <p className="text-lg font-medium mb-2">No Content Available</p>
-              <p className="text-sm opacity-60">
-                Paragraphs will appear here once they're loaded into the system.
-              </p>
+          {!booksHierarchy || !userCompletions ? (
+            <div className="flex items-center justify-center p-8">
+              <div className="loading loading-spinner loading-lg text-primary" />
             </div>
           ) : (
-            <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
-              {booksHierarchy.books.map((book) => {
-              const isBookExpanded = selectedBook === book.bookTitle;
-              const bookCompletedCount = book.sequences.reduce((sum, s) => sum + s.completedParagraphs, 0);
-              const bookTotalCount = book.sequences.reduce((sum, s) => sum + s.totalParagraphs, 0);
-              const bookProgress = Math.round((bookCompletedCount / bookTotalCount) * 100);
+            <>
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <div className="flex items-center justify-between text-sm mb-1.5">
+                    <span className="font-medium opacity-80">Overall Progress</span>
+                    <span className="font-mono text-sm opacity-70">{completionPercentage}%</span>
+                  </div>
+                  <div className="progress h-1.5">
+                    <div
+                      className="progress-value bg-primary/60"
+                      style={{ width: `${completionPercentage}%` }}
+                    />
+                  </div>
+                  <div className="text-xs opacity-50 mt-1">
+                    {userCompletions.totalCompleted} / {booksHierarchy.totalParagraphs} paragraphs
+                  </div>
+                </div>
+                {(selectedBook || selectedSequence || selectedArticle) && (
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-ghost ml-3"
+                    onClick={handleReset}
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
 
-              return (
-                <div key={book.bookTitle} className="collapse bg-base-200">
-                  <input
-                    type="checkbox"
-                    checked={isBookExpanded}
-                    onChange={() => {
-                      if (selectedBook === book.bookTitle) {
+              <div className="divider my-2" />
+
+              {/* Breadcrumbs for selected items */}
+              {selectedBook && (
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    type="button"
+                    className="badge badge-lg badge-primary gap-2 max-w-xs truncate"
+                    onClick={() => {
+                      setSelectedBook(null);
+                      setSelectedSequence(null);
+                      setSelectedArticle(null);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape') {
                         setSelectedBook(null);
                         setSelectedSequence(null);
                         setSelectedArticle(null);
-                      } else {
-                        setSelectedBook(book.bookTitle);
                       }
                     }}
-                  />
-                  <div className="collapse-title pr-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex-1 min-w-0">
-                        <div className="font-medium text-sm line-clamp-1">{book.bookTitle}</div>
-                        <div className="progress h-1 mt-1.5">
-                          <div
-                            className="progress-value bg-success/50"
-                            style={{ width: `${bookProgress}%` }}
-                          />
-                        </div>
-                      </div>
-                      <div className="font-mono text-xs opacity-50 flex-shrink-0">
-                        {bookCompletedCount}/{bookTotalCount}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="collapse-content">
-                    <div className="space-y-2 pt-2">
-                      {book.sequences.map((sequence) => {
-                        const isSequenceExpanded = selectedSequence === sequence.sequenceTitle;
-                        const sequenceProgress = Math.round(
-                          (sequence.completedParagraphs / sequence.totalParagraphs) * 100
-                        );
-
-                        return (
-                          <div key={sequence.sequenceTitle} className="collapse bg-base-300">
-                            <input
-                              type="checkbox"
-                              checked={isSequenceExpanded}
-                              onChange={() => {
-                                if (selectedSequence === sequence.sequenceTitle) {
-                                  setSelectedSequence(null);
-                                  setSelectedArticle(null);
-                                } else {
-                                  setSelectedSequence(sequence.sequenceTitle);
-                                }
-                              }}
-                            />
-                            <div className="collapse-title min-h-0 py-2 pr-3">
-                              <div className="flex items-center justify-between gap-2">
-                                <div className="flex-1 min-w-0">
-                                  <div className="text-sm line-clamp-1">{sequence.sequenceTitle}</div>
-                                  <div className="progress progress-info h-1 mt-1.5">
-                                    <div
-                                      className="progress-value"
-                                      style={{ width: `${sequenceProgress}%` }}
-                                    />
-                                  </div>
-                                </div>
-                                <div className="badge badge-ghost badge-sm font-mono flex-shrink-0">
-                                  {sequence.completedParagraphs}/{sequence.totalParagraphs}
-                                </div>
-                              </div>
-                            </div>
-                            <div className="collapse-content">
-                              <div className="space-y-1.5 pt-2">
-                                {sequence.articles.map((article) => {
-                                  const articleProgress = Math.round(
-                                    (article.completedCount / article.paragraphCount) * 100
-                                  );
-                                  const isArticleSelected = selectedArticle === article.articleTitle;
-
-                                  return (
-                                    <button
-                                      key={article.articleTitle}
-                                      type="button"
-                                      onClick={() => {
-                                        if (selectedArticle === article.articleTitle) {
-                                          setSelectedArticle(null);
-                                        } else {
-                                          setSelectedArticle(article.articleTitle);
-                                        }
-                                      }}
-                                      className={`w-full text-left p-2 rounded-lg transition-colors ${
-                                        isArticleSelected
-                                          ? "bg-primary text-primary-content"
-                                          : "bg-base-100 hover:bg-base-200"
-                                      }`}
-                                    >
-                                      <div className="flex items-center justify-between gap-2 mb-1.5">
-                                        <div className="text-sm line-clamp-1 flex-1">
-                                          {article.articleTitle}
-                                        </div>
-                                        <ChevronRight className="w-4 h-4 flex-shrink-0" />
-                                      </div>
-                                      <div className="flex items-center gap-2">
-                                        <div className={`progress h-1 flex-1 ${isArticleSelected ? "progress-primary-content" : "progress-accent"}`}>
-                                          <div
-                                            className="progress-value"
-                                            style={{ width: `${articleProgress}%` }}
-                                          />
-                                        </div>
-                                        <div className={`text-xs font-mono flex-shrink-0 ${isArticleSelected ? "opacity-90" : "opacity-60"}`}>
-                                          {article.completedCount}/{article.paragraphCount}
-                                        </div>
-                                      </div>
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-            </div>
-          )}
-
-          {selectedArticle && articleParagraphs && (
-            <>
-              <div className="divider my-2">Paragraphs</div>
-              <div className="space-y-1.5 max-h-64 overflow-y-auto">
-                {articleParagraphs.paragraphs.map((para) => {
-                  const isSelected = selectedParagraphId === para._id;
-
-                  return (
+                    aria-label={`Navigate back from ${selectedBook} to book selection`}
+                  >
+                    {selectedBook}
+                    <ChevronRight className="w-3 h-3 flex-shrink-0" />
+                  </button>
+                  {selectedSequence && (
                     <button
-                      key={para._id}
                       type="button"
-                      onClick={() => onSelectParagraph(para._id)}
-                      className={`w-full text-left p-3 rounded-lg transition-all ${
-                        isSelected
-                          ? "bg-primary text-primary-content ring-2 ring-primary ring-offset-2 ring-offset-base-100"
-                          : para.completed
-                          ? "bg-base-200 opacity-50 hover:opacity-70"
-                          : "bg-base-200 hover:bg-base-300"
-                      }`}
+                      className="badge badge-lg badge-primary gap-2 max-w-xs truncate"
+                      onClick={() => {
+                        setSelectedSequence(null);
+                        setSelectedArticle(null);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Escape') {
+                          setSelectedSequence(null);
+                          setSelectedArticle(null);
+                        }
+                      }}
+                      aria-label={`Navigate back from ${selectedSequence} to sequence selection`}
                     >
-                      <div className="flex items-start gap-3">
-                        <div className="flex-shrink-0 pt-0.5">
-                          {para.completed ? (
-                            <CheckCircle className={`w-4 h-4 ${isSelected ? "text-primary-content" : "text-success"}`} />
-                          ) : (
-                            <div className={`w-4 h-4 rounded-full border-2 ${isSelected ? "border-primary-content" : "border-base-content/30"}`} />
-                          )}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <div className={`badge badge-sm ${isSelected ? "badge-primary-content" : "badge-ghost"}`}>
-                              #{para.indexInArticle + 1}
-                            </div>
-                            <div className={`badge badge-sm font-mono ${isSelected ? "badge-primary-content" : "badge-ghost"}`}>
-                              {para.wordCount} words
+                      {selectedSequence}
+                      <ChevronRight className="w-3 h-3 flex-shrink-0" />
+                    </button>
+                  )}
+                  {selectedArticle && (
+                    <button
+                      type="button"
+                      className="badge badge-lg badge-primary gap-2 max-w-xs truncate"
+                      onClick={() => setSelectedArticle(null)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Escape') {
+                          setSelectedArticle(null);
+                        }
+                      }}
+                      aria-label={`Navigate back from ${selectedArticle} to article selection`}
+                    >
+                      {selectedArticle}
+                      <ChevronRight className="w-3 h-3 flex-shrink-0" />
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {booksHierarchy.books.length === 0 ? (
+                <div className="text-center py-12">
+                  <div className="w-16 h-16 bg-base-300 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <BookOpen className="w-8 h-8 opacity-50" />
+                  </div>
+                  <p className="text-lg font-medium mb-2">No Content Available</p>
+                  <p className="text-sm opacity-60">
+                    Paragraphs will appear here once they're loaded into the system.
+                  </p>
+                </div>
+              ) : !selectedBook ? (
+                <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
+                  {booksHierarchy.books.map((book) => {
+                    const bookTotalCount = book.sequences.reduce((sum, s) => sum + s.totalParagraphs, 0);
+                    const bookCompletedCount = book.sequences.reduce((sum, seq) => {
+                      return sum + seq.articles.reduce((articleSum, article) => {
+                        return articleSum + (userCompletions.completionsByArticle[article.articleTitle] || 0);
+                      }, 0);
+                    }, 0);
+                    const bookProgress = bookTotalCount > 0 ? Math.round((bookCompletedCount / bookTotalCount) * 100) : 0;
+
+                    return (
+                      <button
+                        key={book.bookTitle}
+                        type="button"
+                        onClick={() => {
+                          setSelectedBook(book.bookTitle);
+                          setSelectedSequence(null);
+                          setSelectedArticle(null);
+                        }}
+                        className="w-full text-left p-3 rounded-lg bg-base-200 hover:bg-base-300 transition-colors"
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium text-sm line-clamp-1">{book.bookTitle}</div>
+                            <div className="progress h-1 mt-1.5">
+                              <div
+                                className="progress-value bg-success/50"
+                                style={{ width: `${bookProgress}%` }}
+                              />
                             </div>
                           </div>
-                          <p className={`text-sm line-clamp-2 ${isSelected ? "" : "opacity-80"}`}>
-                            {para.content}
-                          </p>
+                          <div className="font-mono text-xs opacity-50 flex-shrink-0">
+                            {bookCompletedCount}/{bookTotalCount}
+                          </div>
                         </div>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : !selectedSequence ? (
+                <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
+                  {booksHierarchy.books
+                    .find(b => b.bookTitle === selectedBook)
+                    ?.sequences.map((sequence) => {
+                      const sequenceCompletedCount = sequence.articles.reduce((sum, article) => {
+                        return sum + (userCompletions.completionsByArticle[article.articleTitle] || 0);
+                      }, 0);
+                      const sequenceProgress = sequence.totalParagraphs > 0
+                        ? Math.round((sequenceCompletedCount / sequence.totalParagraphs) * 100)
+                        : 0;
+
+                      return (
+                        <button
+                          key={sequence.sequenceTitle}
+                          type="button"
+                          onClick={() => {
+                            setSelectedSequence(sequence.sequenceTitle);
+                            setSelectedArticle(null);
+                          }}
+                          className="w-full text-left p-3 rounded-lg bg-base-200 hover:bg-base-300 transition-colors"
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="flex-1 min-w-0">
+                              <div className="text-sm line-clamp-1">{sequence.sequenceTitle}</div>
+                              <div className="progress progress-info h-1 mt-1.5">
+                                <div
+                                  className="progress-value"
+                                  style={{ width: `${sequenceProgress}%` }}
+                                />
+                              </div>
+                            </div>
+                            <div className="badge badge-ghost badge-sm font-mono flex-shrink-0">
+                              {sequenceCompletedCount}/{sequence.totalParagraphs}
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                </div>
+              ) : !selectedArticle ? (
+                <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
+                  {booksHierarchy.books
+                    .find(b => b.bookTitle === selectedBook)
+                    ?.sequences.find(s => s.sequenceTitle === selectedSequence)
+                    ?.articles.map((article) => {
+                      const articleCompletedCount = userCompletions.completionsByArticle[article.articleTitle] || 0;
+                      const articleProgress = article.paragraphCount > 0
+                        ? Math.round((articleCompletedCount / article.paragraphCount) * 100)
+                        : 0;
+
+                      return (
+                        <button
+                          key={article.articleTitle}
+                          type="button"
+                          onClick={() => setSelectedArticle(article.articleTitle)}
+                          className="w-full text-left p-3 rounded-lg bg-base-200 hover:bg-base-300 transition-colors"
+                        >
+                          <div className="flex items-center justify-between gap-2 mb-1.5">
+                            <div className="text-sm line-clamp-1 flex-1">
+                              {article.articleTitle}
+                            </div>
+                            <ChevronRight className="w-4 h-4 flex-shrink-0" />
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <div className="progress progress-accent h-1 flex-1">
+                              <div
+                                className="progress-value"
+                                style={{ width: `${articleProgress}%` }}
+                              />
+                            </div>
+                            <div className="text-xs font-mono flex-shrink-0 opacity-60">
+                              {articleCompletedCount}/{article.paragraphCount}
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                </div>
+              ) : null}
+
+              {selectedArticle && articleParagraphs && (
+                <>
+                  <div className="divider my-2">Paragraphs</div>
+                  <div className="space-y-1.5 max-h-64 overflow-y-auto">
+                    {articleParagraphs.paragraphs.map((para) => {
+                      const isSelected = selectedParagraphId === para._id;
+
+                      return (
+                        <button
+                          key={para._id}
+                          type="button"
+                          onClick={() => onSelectParagraph(para._id)}
+                          className={`w-full text-left p-3 rounded-lg transition-all ${
+                            isSelected
+                              ? "bg-primary text-primary-content ring-2 ring-primary ring-offset-2 ring-offset-base-100"
+                              : para.completed
+                              ? "bg-base-200 opacity-50 hover:opacity-70"
+                              : "bg-base-200 hover:bg-base-300"
+                          }`}
+                        >
+                          <div className="flex items-start gap-3">
+                            <div className="flex-shrink-0 pt-0.5">
+                              {para.completed ? (
+                                <CheckCircle className={`w-4 h-4 ${isSelected ? "text-primary-content" : "text-success"}`} />
+                              ) : (
+                                <div className={`w-4 h-4 rounded-full border-2 ${isSelected ? "border-primary-content" : "border-base-content/30"}`} />
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1">
+                                <div className={`badge badge-sm ${isSelected ? "badge-primary-content" : "badge-ghost"}`}>
+                                  #{para.indexInArticle + 1}
+                                </div>
+                                <div className={`badge badge-sm font-mono ${isSelected ? "badge-primary-content" : "badge-ghost"}`}>
+                                  {para.wordCount} words
+                                </div>
+                              </div>
+                              <p className={`text-sm line-clamp-2 ${isSelected ? "" : "opacity-80"}`}>
+                                {para.content}
+                              </p>
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
             </>
           )}
         </div>

@@ -1,4 +1,5 @@
 import { useForm } from "@tanstack/react-form";
+import { useNavigate } from "@tanstack/react-router";
 import { useMutation } from "convex/react";
 import {
   CheckCircle,
@@ -10,7 +11,6 @@ import {
   Users,
 } from "lucide-react";
 import { useState } from "react";
-import { useNavigate } from "@tanstack/react-router";
 import { z } from "zod";
 import { api } from "../../../convex/_generated/api";
 import type { Id } from "../../../convex/_generated/dataModel";
@@ -55,8 +55,8 @@ export default function RoomLobby({
 
   const wordCountForm = useForm({
     defaultValues: {
-      minWordCount: room.minWordCount ?? 50,
-      maxWordCount: room.maxWordCount ?? 150,
+      minWordCount: room.minWordCount ?? 20,
+      maxWordCount: room.maxWordCount ?? 60,
     },
     validators: {
       onChange: wordCountSchema,
@@ -127,7 +127,7 @@ export default function RoomLobby({
   };
 
   return (
-    <div className="max-w-6xl mx-auto px-4">
+    <div className="max-w-6xl mx-auto px-4 pb-96">
       <div className="text-center mb-8">
         <h1 className="mt-0">Game Lobby</h1>
 
@@ -261,7 +261,7 @@ export default function RoomLobby({
           <div className="card-body">
             <h2 className="card-title mb-4">
               <Settings className="w-5 h-5" />
-              Game Settings
+              Paragraph Selection
             </h2>
 
             {isHost ? (
@@ -335,13 +335,7 @@ export default function RoomLobby({
                 <div className="mt-6">
                   <button
                     type="submit"
-                    className={`btn btn-success btn-lg w-full transition-all ${
-                      (allReady || isSoloRoom) &&
-                      wordCountForm.state.canSubmit &&
-                      !wordCountForm.state.isSubmitting
-                        ? "animate-pulse"
-                        : ""
-                    }`}
+                    className="btn btn-success btn-lg w-full transition-all"
                     disabled={
                       (!allReady && !isSoloRoom) ||
                       !wordCountForm.state.canSubmit ||

@@ -2,42 +2,14 @@ import { v } from "convex/values";
 import { Id } from "./_generated/dataModel";
 import { query } from "./_generated/server";
 
-// Get books with sequences and articles hierarchy (optimized - uses articles metadata table)
+// Get books with sequences and articles hierarchy (cacheable - no user data)
 export const getBooksHierarchy = query({
   args: {},
   handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity();
-
     const allArticles = await ctx.db
       .query("articles")
       .withIndex("by_book_sequence")
       .collect();
-
-    // Count completions per article for this user
-    const completionCountsByArticle = new Map<string, number>();
-    let totalCompletedParagraphs = 0;
-
-    if (identity) {
-      const user = await ctx.db
-        .query("users")
-        .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
-        .unique();
-
-      if (user) {
-        const userArticleCompletions = await ctx.db
-          .query("articleCompletions")
-          .withIndex("by_user", (q) => q.eq("userId", user._id))
-          .collect();
-
-        for (const articleCompletion of userArticleCompletions) {
-          completionCountsByArticle.set(
-            articleCompletion.articleTitle,
-            articleCompletion.completedCount
-          );
-          totalCompletedParagraphs += articleCompletion.completedCount;
-        }
-      }
-    }
 
     // Build hierarchy from articles metadata
     const bookMap = new Map<string, {
@@ -51,7 +23,6 @@ export const getBooksHierarchy = query({
           articleUrl: string;
           articleOrder: number;
           paragraphCount: number;
-          completedCount: number;
         }>;
       }>;
     }>();
@@ -80,7 +51,6 @@ export const getBooksHierarchy = query({
         articleUrl: article.articleUrl,
         articleOrder: article.articleOrder,
         paragraphCount: article.paragraphCount,
-        completedCount: completionCountsByArticle.get(article.articleTitle) || 0,
       });
     }
 
@@ -94,7 +64,6 @@ export const getBooksHierarchy = query({
           sequenceOrder: seq.sequenceOrder,
           articles: sortedArticles,
           totalParagraphs: sortedArticles.reduce((sum, a) => sum + a.paragraphCount, 0),
-          completedParagraphs: sortedArticles.reduce((sum, a) => sum + a.completedCount, 0),
         };
       }).sort((a, b) => a.sequenceOrder - b.sequenceOrder),
     })).sort((a, b) => a.bookOrder - b.bookOrder);
@@ -104,8 +73,42 @@ export const getBooksHierarchy = query({
     return {
       books,
       totalParagraphs,
-      completedParagraphs: totalCompletedParagraphs,
     };
+  },
+});
+
+// Get user's completion counts per article (separate for caching)
+export const getUserArticleCompletions = query({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      return { completionsByArticle: {}, totalCompleted: 0 };
+    }
+
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerkId", (q) => q.eq("clerkId", identity.subject))
+      .unique();
+
+    if (!user) {
+      return { completionsByArticle: {}, totalCompleted: 0 };
+    }
+
+    const userArticleCompletions = await ctx.db
+      .query("articleCompletions")
+      .withIndex("by_user", (q) => q.eq("userId", user._id))
+      .collect();
+
+    const completionsByArticle: Record<string, number> = {};
+    let totalCompleted = 0;
+
+    for (const articleCompletion of userArticleCompletions) {
+      completionsByArticle[articleCompletion.articleTitle] = articleCompletion.completedCount;
+      totalCompleted += articleCompletion.completedCount;
+    }
+
+    return { completionsByArticle, totalCompleted };
   },
 });
 
@@ -138,7 +141,9 @@ export const getArticleParagraphs = query({
       if (user) {
         const userCompletions = await ctx.db
           .query("completions")
-          .withIndex("by_user", (q) => q.eq("userId", user._id))
+          .withIndex("by_user_and_article", (q) =>
+            q.eq("userId", user._id).eq("articleTitle", articleTitle)
+          )
           .collect();
 
         userCompletions.forEach(c => completedIds.add(c.paragraphId));
